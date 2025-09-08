@@ -1,0 +1,12 @@
+{
+  "name": "@hive/typescript-config",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.35.0"
+  }
+}
