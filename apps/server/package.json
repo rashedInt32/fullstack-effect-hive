@@ -7,8 +7,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -17,13 +15,19 @@
     }
   },
   "scripts": {
-    "dev": "tsc --watch",
-    "build": "prisma generate && tsc",
+    "dev": "tsx src/index.ts --watch",
+    "build": "tsc",
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@hive/eslint-config": "workspace:*",
     "@hive/typescript-config": "workspace:*",
-    "@hive/eslint-config": "workspace:*"
+    "tsx": "^4.20.5",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@effect/platform": "^0.90.9",
+    "@effect/platform-node": "^0.96.1",
+    "effect": "^3.17.13"
   }
 }
