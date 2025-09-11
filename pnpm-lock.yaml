@@ -18,7 +18,17 @@ importers:
         specifier: 5.8.3
         version: 5.8.3
 
-  apps/server: {}
+  apps/server:
+    devDependencies:
+      '@hive/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@hive/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      typescript:
+        specifier: ^5
+        version: 5.8.3
 
   apps/web:
     dependencies:
@@ -35,6 +45,12 @@ importers:
       '@eslint/eslintrc':
         specifier: ^3
         version: 3.3.1
+      '@hive/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@hive/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.11
