@@ -1,47 +1,71 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Data } from "effect";
 import { Pool as PgPool } from "pg";
 import type { Pool } from "pg";
 import { AppConfig } from "./Config";
+
+export class DbError extends Data.TaggedError("DbError")<{
+  message: string;
+  cause?: unknown;
+  code:
+    | "DB_POOLING_FAILED"
+    | "DB_CLOUSER_FAILED"
+    | "DB_QUERY_FAILED"
+    | "UNKNOWN_ERROR";
+}> {}
 
 export interface Db {
   pool: Pool;
   query: (
     sql: string,
     params?: unknown[],
-  ) => Effect.Effect<{ rows: any[] }, Error>;
+  ) => Effect.Effect<{ rows: unknown[] }, DbError>;
 }
 
-export const Db = Context.GenericTag<Db>("@services/Db");
+export const Db = Context.GenericTag<Db>("@service/db");
 
-const createPool = (databaseUrl: string): Promise<Pool> =>
-  Promise.resolve(new PgPool({ connectionString: databaseUrl }));
-
-export const DbLive = Layer.scoped(
-  Db,
-  Effect.gen(function* () {
-    const { DATABASE_URL } = yield* AppConfig;
-    const pool = yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () => createPool(DATABASE_URL),
-        catch: (err) => new Error(`Failed to create DB pool: ${String(err)}`),
-      }),
-      (pool) =>
-        Effect.orDie(
-          Effect.tryPromise({
-            try: () => pool.end(),
-            catch: (err) =>
-              new Error(`Failed to close DB pool: ${String(err)}`),
-          }),
-        ),
-    );
-    const db: Db = {
-      pool,
-      query: (sql, params) =>
-        Effect.tryPromise({
-          try: () => pool.query(sql, params).then((r) => ({ rows: r.rows })),
-          catch: (err) => new Error(`DB query failed: ${String(err)}`),
+const makePool = (databaseUrl: string) =>
+  Effect.promise(() =>
+    Promise.resolve(new PgPool({ connectionString: databaseUrl })),
+  ).pipe(
+    Effect.mapError(
+      (err) =>
+        new DbError({
+          message: `Failed to create DB pool: ${String(err)}`,
+          code: "DB_POOLING_FAILED",
+          cause: err,
         }),
-    };
-    return db;
-  }),
+    ),
+  );
+
+const runQuery = (
+  pool: Pool,
+  sql: string,
+  params?: unknown[],
+): Effect.Effect<{ rows: unknown[] }, DbError> =>
+  Effect.promise(() =>
+    pool.query(sql, params).then((r) => ({ rows: r.rows })),
+  ).pipe(
+    Effect.mapError(
+      (err) =>
+        new DbError({
+          message: `DB query failed: ${String(err)}`,
+          code: "DB_QUERY_FAILED",
+          cause: err,
+        }),
+    ),
+  );
+
+export const DbLive = Layer.effect(
+  Db,
+  AppConfig.pipe(
+    Effect.flatMap(({ DATABASE_URL }) =>
+      makePool(DATABASE_URL).pipe(
+        Effect.map((pool) => ({
+          pool,
+          query: (sql: string, params?: unknown[]) =>
+            runQuery(pool, sql, params),
+        })),
+      ),
+    ),
+  ),
 );
