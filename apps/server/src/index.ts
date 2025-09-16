@@ -9,7 +9,6 @@ import {
 } from "@effect/platform";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer, Schema } from "effect";
-import { Certificate } from "node:crypto";
 import { createServer } from "node:http";
 
 const MyApi = HttpApi.make("MyApi").add(

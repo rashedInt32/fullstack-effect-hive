@@ -13,11 +13,13 @@
       ],
       "env": [
         "DATABASE_URL",
-        "AUTH_SECRET",
+        "JWT_SECRET",
         "RESEND_API_KEY",
         "CRYPTO_SECRET",
         "NEXT_PUBLIC_BASE_URL",
-        "NEXTAUTH_SECRET"
+        "NEXTAUTH_SECRET",
+        "PORT",
+        "NODE_ENV"
       ]
     },
     "lint": {
