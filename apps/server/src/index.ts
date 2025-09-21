@@ -10,6 +10,7 @@ import {
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer, Schema } from "effect";
 import { createServer } from "node:http";
+import { AppConfig, AppConfigLive } from "./config/Config";
 
 const MyApi = HttpApi.make("MyApi").add(
   HttpApiGroup.make("greet")
@@ -34,12 +35,17 @@ const server = HttpApiBuilder.serve().pipe(
 Layer.launch(server).pipe(NodeRuntime.runMain);
 
 const program = Effect.gen(function* () {
+  const { PORT } = yield* AppConfig;
   const client = yield* HttpApiClient.make(MyApi, {
-    baseUrl: "http://localhost:3000",
+    baseUrl: `http://localhost:${PORT}`,
   });
 
   const hello = yield* client.greet["hello"]();
   console.log(hello);
 });
 
-Effect.runFork(program.pipe(Effect.provide(FetchHttpClient.layer)));
+Effect.runFork(
+  program.pipe(
+    Effect.provide(Layer.merge(FetchHttpClient.layer, AppConfigLive)),
+  ),
+);

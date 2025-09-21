@@ -2,14 +2,7 @@ import { Context, Effect, Layer, Data } from "effect";
 import { Pool as PgPool } from "pg";
 import type { Pool } from "pg";
 import { AppConfig } from "./Config";
-import { params } from "@effect/platform/HttpRouter";
 
-// Need tagged error to
-// Db layer that connects to database and run the sql query
-// interface
-// context
-// live impl
-const DbErrorCodes = [];
 export class DbError extends Data.TaggedError("DbError")<{
   message: string;
   code:
