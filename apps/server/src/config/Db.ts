@@ -7,5 +7,5 @@ export const Db = SqlClient.SqlClient;
 
 export const DbLive = Effect.gen(function* () {
   const { DATABASE_URL } = yield* AppConfig;
-  return PgClient.layer({ url: Redacted.make(DATABASE_URL) });
+  return PgClient.layer({ url: Redacted.make(DATABASE_URL), ssl: true });
 });

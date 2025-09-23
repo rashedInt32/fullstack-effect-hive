@@ -27,8 +27,6 @@ export const AppConfigLive = Layer.effect(
       JWT_SECRET: process.env.JWT_SECRET || "default_secret",
     };
 
-    console.log(cfg.DATABASE_URL);
-
     if (!cfg.DATABASE_URL) {
       throw new ConfigError({
         message: "DATABASE_URL is not set",
