@@ -1,4 +1,3 @@
-// Modern Effect v2+ examples for Copilot reference
 import { Context, Data, Effect, Layer, Schema } from "effect";
 
 export class ConfigError extends Data.TaggedError("ConfigError")<{
@@ -27,6 +26,8 @@ export const AppConfigLive = Layer.effect(
       DATABASE_URL: process.env.DATABASE_URL!,
       JWT_SECRET: process.env.JWT_SECRET || "default_secret",
     };
+
+    console.log(cfg.DATABASE_URL);
 
     if (!cfg.DATABASE_URL) {
       throw new ConfigError({

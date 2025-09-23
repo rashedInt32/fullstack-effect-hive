@@ -17,7 +17,8 @@
   "scripts": {
     "dev": "tsx src/index.ts --watch",
     "build": "tsc",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "db:migrate": "tsx src/migrate.ts"
   },
   "devDependencies": {
     "@hive/eslint-config": "workspace:*",

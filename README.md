@@ -1,44 +1,57 @@
-# NextAuth Authentication Package
+# Fullstack Effect Hive
 
-A robust, type-safe authentication package built with [NextAuth.js](https://next-auth.js.org/) (Auth.js), [Effect](https://effect.land/), and [Prisma ORM](https://www.prisma.io/). This package provides a complete authentication solution that can be easily integrated into other Next.js projects.
+A modern, type-safe fullstack chat application built with [Effect](https://effect.land/), featuring real-time messaging, room-based conversations, and user authentication. This monorepo showcases functional programming patterns with Effect while delivering a complete chat experience.
 
 ## 🚀 Features
 
-- **Complete Authentication System**: User registration, login, password reset, and two-factor authentication
+- **Real-time Chat**: WebSocket-based messaging with instant delivery
+- **Room-based Conversations**: Create and join chat rooms for organized discussions
+- **User Authentication**: Secure JWT-based authentication system
+- **Invitation System**: Invite users to join rooms and conversations
 - **Type-Safe**: Built with TypeScript and Effect for robust error handling
-- **Database Integration**: Prisma ORM with PostgreSQL support
-- **Modern Architecture**: Built with Effect for functional programming patterns
-- **Easy Integration**: Simple exports for quick setup in other projects
-- **Security**: Bcrypt password hashing, JWT tokens, and secure session management
+- **Functional Architecture**: Effect-based services for predictable, testable code
+- **Database Integration**: PostgreSQL with Effect SQL for reliable data persistence
+- **Modern Frontend**: Next.js 15 with React 19 and Tailwind CSS
 
-## 📦 Packages
+## 📦 Apps & Packages
 
-This monorepo contains the following packages:
+This monorepo contains the following applications and packages:
 
-- **`@repo/auth`**: Core authentication package with NextAuth.js integration
-- **`@repo/db`**: Database layer with Prisma ORM and Effect services
-- **`@repo/ui`**: Shared UI components
-- **`@repo/eslint-config`**: ESLint configurations
-- **`@repo/typescript-config`**: TypeScript configurations
+### Apps
+
+- **`@hive/server`**: Effect-based backend API server with WebSocket support
+- **`@hive/web`**: Next.js frontend application with modern UI
+
+### Packages
+
+- **`@hive/eslint-config`**: Shared ESLint configurations
+- **`@hive/typescript-config`**: Shared TypeScript configurations
 
 ## 🛠️ Tech Stack
 
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) (Auth.js v5)
-- **Functional Programming**: [Effect](https://effect.land/) for error handling and side effects
-- **Database**: [Prisma ORM](https://www.prisma.io/) with PostgreSQL
-- **Password Security**: [bcryptjs](https://github.com/dcodeIO/bcrypt.js/)
-- **JWT**: [jose](https://github.com/panva/jose) for token handling
-- **Email**: [Resend](https://resend.com/) for transactional emails
+- **Backend Framework**: [Effect](https://effect.land/) for functional programming and error handling
+- **HTTP Server**: Effect Platform with Node.js runtime
+- **Database**: PostgreSQL with Effect SQL
+- **Real-time**: WebSocket integration for live messaging
+- **Frontend**: [Next.js 15](https://nextjs.org/) with [React 19](https://react.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) for modern UI
 - **Monorepo**: [Turborepo](https://turborepo.com/) for efficient development
+- **Type Safety**: [TypeScript](https://www.typescriptlang.org/) throughout
 
 ## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL database
+- pnpm package manager
 
 ### Installation
 
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd next-auth
+cd fullstack-effect-hive
 
 # Install dependencies
 pnpm install
@@ -49,196 +62,209 @@ cp .env.example .env.local
 
 ### Environment Variables
 
+Create a `.env.local` file in the root directory:
+
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
+DATABASE_URL="postgresql://user:password@localhost:5432/hive_db"
 
-# NextAuth
-NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
+# Server
+PORT=3001
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
 
-# Email (Resend)
-RESEND_API_KEY="your-resend-api-key"
+# Frontend (optional, for production builds)
+NEXT_PUBLIC_API_URL="http://localhost:3001"
 ```
 
 ### Database Setup
 
 ```bash
-# Generate Prisma client
-pnpm --filter @repo/db db:generate
-
-# Run migrations
-pnpm --filter @repo/db db:migrate
-
-# Or push schema changes
-pnpm --filter @repo/db db:push
+# Run database migrations
+pnpm --filter @hive/server db:migrate
 ```
 
 ### Development
 
 ```bash
-# Start development mode for all packages
+# Start both server and web apps in development mode
 pnpm dev
 
-# Build all packages
+# Or run them separately:
+pnpm --filter @hive/server dev    # Start the Effect server on port 3001
+pnpm --filter @hive/web dev       # Start the Next.js app on port 3000
+
+# Build all apps
 pnpm build
 
-# Lint all packages
+# Lint all code
 pnpm lint
+
+# Type checking
+pnpm check-types
 ```
 
 ## 📚 Usage
 
-### Basic Authentication Setup
+### Architecture Overview
 
-```typescript
-// In your Next.js app
-import { authOptions } from '@repo/auth/options';
-import NextAuth from 'next-auth';
+The application follows a clean architecture with Effect-based services:
 
-export const { handlers, auth } = NextAuth(authOptions);
+- **Server**: Effect HTTP API with WebSocket support for real-time features
+- **Database**: PostgreSQL with Effect SQL for type-safe queries
+- **Frontend**: Next.js with modern React patterns
+- **Real-time**: WebSocket connections for live messaging
 
-// API routes
-export const GET = handlers.GET;
-export const POST = handlers.POST;
-```
+### API Endpoints
 
-### User Registration
+The server exposes RESTful endpoints for:
 
-```typescript
-import { registerUser } from '@repo/auth/signup';
-import { Effect } from 'effect';
+- User management (registration, authentication)
+- Room creation and management
+- Message handling
+- Invitation system
 
-const handleSignup = async (email: string, password: string) => {
-  const result = await Effect.runPromise(
-    registerUser({ email, password })
-  );
-  
+### Frontend Integration
+
+The Next.js frontend connects to the Effect server via:
+
+- HTTP requests for data operations
+- WebSocket connections for real-time updates
+- JWT-based authentication
+
   if (Effect.isSuccess(result)) {
-    // User created successfully
-    console.log('User created:', result.value);
+  // Login successful, user redirected to dashboard
   } else {
-    // Handle error
-    console.error('Error:', result.error);
+  // Handle login error
+  console.error("Login failed:", result.error);
   }
-};
-```
+  };
 
-### User Login
-
-```typescript
-import { loginEffect } from '@repo/auth/login';
-import { useRouter } from 'next/navigation';
-
-const handleLogin = async (email: string, password: string) => {
-  const router = useRouter();
-  
-  const result = await Effect.runPromise(
-    loginEffect(email, password, router)
-  );
-  
-  if (Effect.isSuccess(result)) {
-    // Login successful, user redirected to dashboard
-  } else {
-    // Handle login error
-    console.error('Login failed:', result.error);
-  }
-};
-```
+````
 
 ### Password Reset
 
 ```typescript
-import { forgotPasswordRoute } from '@repo/auth/forgot-password-route';
-import { resetPasswordRoute } from '@repo/auth/reset-password-route';
+import { forgotPasswordRoute } from "@repo/auth/forgot-password-route";
+import { resetPasswordRoute } from "@repo/auth/reset-password-route";
 
 // Use in your API routes
 export const POST = forgotPasswordRoute;
 export const PUT = resetPasswordRoute;
-```
+````
 
 ## 🏗️ Architecture
 
 ### Effect Integration
 
-The package uses Effect for functional error handling and side effects:
+The application uses Effect for functional error handling and side effects throughout:
 
 ```typescript
-import { Effect } from 'effect';
+import { Effect } from "effect";
 
-// All database operations are wrapped in Effect
-const userResult = yield* findUserByEmail(email);
+// All operations are wrapped in Effect for predictable error handling
+const userResult = yield * findUserByEmail(email);
 
-// Error handling with Effect
-const result = yield* Effect.tryPromise({
-  try: () => bcrypt.compare(password, user.password!),
-  catch: (err) => new Error(`Password comparison failed: ${err}`)
-});
+// HTTP API with Effect Platform
+const api = HttpApi.make("ChatAPI").add(
+  HttpApiGroup.make("users").add(
+    HttpApiEndpoint.post("register")`/users`.addSuccess(UserSchema),
+  ),
+);
+
+// WebSocket real-time messaging
+const realtimeBus = yield * RealtimeBus;
+yield * realtimeBus.broadcast(roomId, message);
 ```
 
-### Prisma Service Layer
+### Service Layer Architecture
 
-Database operations are abstracted through a service layer:
+Business logic is organized in service layers with Effect:
 
 ```typescript
-import { PrismaServiceLive, findUserByEmail } from '@repo/db';
+// User service with Effect
+export const UserService = Effect.gen(function* () {
+  const db = yield* DatabaseService;
+  const auth = yield* AuthService;
 
-const userEffect = Effect.gen(function* () {
-  const user = yield* findUserByEmail(email);
-  // ... rest of the logic
-}).pipe(Effect.provide(PrismaServiceLive));
+  return {
+    createUser: (data: UserCreate) =>
+      Effect.gen(function* () {
+        // Implementation with proper error handling
+      }),
+    authenticateUser: (credentials: LoginCredentials) =>
+      Effect.gen(function* () {
+        // JWT token generation and validation
+      }),
+  };
+});
 ```
 
 ## 🔧 Development
 
-### Package Structure
+### Project Structure
 
 ```
+apps/
+├── server/               # Effect-based backend
+│   ├── src/
+│   │   ├── api/routes/   # HTTP API routes
+│   │   ├── auth/         # Authentication services
+│   │   ├── config/       # Configuration management
+│   │   ├── invitation/   # Invitation system
+│   │   ├── message/      # Message handling
+│   │   ├── realtime/     # WebSocket real-time features
+│   │   ├── room/         # Room management
+│   │   ├── user/         # User services
+│   │   ├── index.ts      # Server entry point
+│   │   └── migrate.ts    # Database migrations
+│   └── package.json
+└── web/                  # Next.js frontend
+    ├── app/              # Next.js app router
+    ├── public/           # Static assets
+    └── package.json
+
 packages/
-├── auth/                 # Authentication package
-│   ├── src/
-│   │   ├── options.ts    # NextAuth configuration
-│   │   ├── login.ts      # Login logic with Effect
-│   │   ├── signup.ts     # User registration
-│   │   ├── next.ts       # Next.js integration
-│   │   └── reset-password/ # Password reset functionality
-│   └── package.json
-├── db/                   # Database package
-│   ├── src/
-│   │   ├── prisma-service.ts # Effect-based Prisma service
-│   │   ├── query.ts      # Database queries
-│   │   └── index.ts      # Exports
-│   ├── prisma/           # Prisma schema and migrations
-│   └── package.json
-└── ui/                   # Shared UI components
+├── eslint-config/        # Shared ESLint configs
+└── typescript-config/    # Shared TypeScript configs
 ```
 
 ### Adding New Features
 
-1. **Database Changes**: Update the Prisma schema in `packages/db/prisma/schema.prisma`
-2. **New Queries**: Add to `packages/db/src/query.ts`
-3. **Auth Logic**: Add to `packages/auth/src/`
-4. **Build**: Run `pnpm build` to generate types and build packages
+1. **Database Models**: Add SQL schema files in `apps/server/src/*/Model.sql`
+2. **Services**: Implement Effect-based services in respective directories
+3. **API Routes**: Add HTTP endpoints in `apps/server/src/api/routes/`
+4. **Frontend**: Build React components in `apps/web/app/`
+5. **Real-time**: Extend WebSocket functionality in `apps/server/src/realtime/`
+6. **Build**: Run `pnpm build` to compile all applications
 
 ## 📖 API Reference
 
-### Auth Package Exports
+### Server Services
 
-- `@repo/auth/options` - NextAuth configuration
-- `@repo/auth/next` - Next.js integration helpers
-- `@repo/auth/login` - Login functionality
-- `@repo/auth/signup` - User registration
-- `@repo/auth/signup-route` - Signup API route
-- `@repo/auth/forgot-password-route` - Password reset request
-- `@repo/auth/reset-password-route` - Password reset
-- `@repo/auth/crypto-service` - JWT and crypto utilities
+- **UserService**: User registration, authentication, and profile management
+- **RoomService**: Chat room creation, membership, and management
+- **MessageService**: Message sending, retrieval, and real-time delivery
+- **InvitationService**: Room invitation creation and acceptance
+- **AuthService**: JWT token generation and validation
+- **RealtimeBus**: WebSocket-based real-time messaging
 
-### Database Package Exports
+### HTTP API Endpoints
 
-- `@repo/db` - Main database client and services
-- `@repo/db/prisma` - Prisma client instance
-- `@repo/db/query` - Database query functions
-- `@repo/db/prisma-service` - Effect-based Prisma service
+- `GET /` - Health check
+- `POST /users` - User registration
+- `POST /auth/login` - User authentication
+- `GET /rooms` - List user's rooms
+- `POST /rooms` - Create new room
+- `GET /rooms/:id/messages` - Get room messages
+- `POST /rooms/:id/messages` - Send message
+- `POST /rooms/:id/invitations` - Invite user to room
+
+### WebSocket Events
+
+- `join-room` - Join a chat room
+- `leave-room` - Leave a chat room
+- `send-message` - Send a message to room
+- `message-received` - Receive new messages in real-time
 
 ## 🤝 Contributing
 
@@ -254,7 +280,9 @@ This project is licensed under the MIT License.
 
 ## 🔗 Links
 
-- [NextAuth.js Documentation](https://next-auth.js.org/)
-- [Effect Documentation](https://effect.land/)
-- [Prisma Documentation](https://www.prisma.io/docs/)
-- [Turborepo Documentation](https://turborepo.com/docs)
+- [Effect Documentation](https://effect.land/) - Functional programming framework
+- [Next.js Documentation](https://nextjs.org/) - React framework
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- [PostgreSQL](https://www.postgresql.org/) - Database
+- [Turborepo Documentation](https://turborepo.com/docs) - Monorepo build system
+- [WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets) - Real-time communication
