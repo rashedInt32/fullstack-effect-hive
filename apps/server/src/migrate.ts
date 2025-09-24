@@ -1,4 +1,5 @@
-import { Console, Effect, Layer } from "effect";
+import "dotenv/config";
+import { Console, Effect } from "effect";
 import { join } from "path";
 import { Db, DbLive } from "./config/Db";
 import { readFileSync } from "fs";
