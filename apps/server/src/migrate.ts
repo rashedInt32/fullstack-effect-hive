@@ -1,30 +1,25 @@
-import "dotenv/config";
-import { Console, Effect } from "effect";
-import { join } from "path";
+import { Effect, Console } from "effect";
 import { Db, DbLive } from "./config/Db";
-import { readFileSync } from "fs";
 import { AppConfigLive } from "./config/Config";
+import { join } from "path";
+import { readFileSync } from "fs";
 
-const sqlFiels = ["user/UserModel.sql"];
+const sqlFiles = ["user/UserModel.sql"];
 
 const migrate = Effect.gen(function* () {
   yield* Console.log("Migration starts...");
   const DB = yield* Db;
   let combinedSql = "";
 
-  for (const file of sqlFiels) {
-    const filePath = join(__dirname, file);
-    const sql = readFileSync(filePath, "utf-8");
+  for (const file of sqlFiles) {
+    const sql = readFileSync(join(__dirname, file), "utf-8");
     combinedSql += sql + "\n";
   }
+
   yield* DB.unsafe(combinedSql);
-
   yield* Console.log("Migration completed successfully");
-});
+}).pipe(Effect.provide(AppConfigLive));
 
-Effect.runPromise(
-  Effect.gen(function* () {
-    const dbLayer = yield* DbLive;
-    return yield* migrate.pipe(Effect.provide(dbLayer));
-  }).pipe(Effect.provide(AppConfigLive)),
-);
+// Merge layers properly
+
+Effect.runPromise(migrate.pipe(Effect.provide(DbLive)));
