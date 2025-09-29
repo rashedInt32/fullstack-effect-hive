@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Effect, Console } from "effect";
 import { Db, DbLive } from "./config/Db";
 import { AppConfigLive } from "./config/Config";

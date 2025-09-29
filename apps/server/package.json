@@ -15,7 +15,7 @@
     }
   },
   "scripts": {
-    "dev": "tsx src/index.ts --watch",
+    "dev": "tsx --watch --inspect src/index.ts",
     "build": "tsc",
     "check-types": "tsc --noEmit",
     "db:migrate": "tsx src/migrate.ts"

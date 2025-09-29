@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Context, Data, Effect, Layer, Schema } from "effect";
 
 export class ConfigError extends Data.TaggedError("ConfigError")<{
