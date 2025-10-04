@@ -11,14 +11,7 @@ import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer, Schema, Console } from "effect";
 import { createServer } from "node:http";
 import { Db, DbLive } from "./config/Db";
-
-const UserScheme = Schema.Struct({
-  username: Schema.String,
-  email: Schema.String,
-  password: Schema.String,
-});
-
-type User = Schema.Schema.Type<typeof UserScheme>;
+import { UserScheme, User } from "./types/User";
 
 // create httpApi
 const MyApi = HttpApi.make("MyApi").add(
