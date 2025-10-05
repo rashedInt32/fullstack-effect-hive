@@ -18,5 +18,15 @@ export const UserRow = Schema.Struct({
   created_at: Schema.optional(Schema.DateFromString),
 });
 
+export const UserServiceErrorSchema = Schema.Struct({
+  message: Schema.String,
+  code: Schema.Literal(
+    "USER_CREATION_FAILED",
+    "USER_NOT_FOUND",
+    "INVALID_USER_ID",
+    "USERNAME_ALREADY_EXISTS",
+    "EMAIL_ALREADY_EXISTS",
+  ),
+});
+
 export const UserSchema = UserRow.omit("password_hash", "created_at");
-export type User = Schema.Schema.Type<typeof UserSchema>;

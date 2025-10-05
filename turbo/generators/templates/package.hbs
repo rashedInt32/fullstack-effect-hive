@@ -1,5 +1,5 @@
 {
-  "name": "@hive/server",
+  "name": "@hive/{{name}}",
   "version": "1.0.0",
   "description": "",
   "main": "./dist/index.js",
@@ -15,27 +15,16 @@
     }
   },
   "scripts": {
-    "dev": "tsx watch  src/index.ts",
+    "dev": "tsx --watch --inspect src/index.ts",
     "build": "tsc",
     "check-types": "tsc --noEmit",
-    "db:migrate": "tsx src/migrate.ts"
   },
   "devDependencies": {
     "@hive/eslint-config": "workspace:*",
     "@hive/typescript-config": "workspace:*",
-    "@hive/shared": "workspace:*",
-    "@types/pg": "^8.15.5",
-    "tsx": "^4.20.5",
     "typescript": "^5"
   },
   "dependencies": {
-    "@effect/platform": "^0.90.9",
-    "@effect/platform-node": "^0.96.1",
-    "@effect/sql": "^0.44.2",
-    "@effect/sql-pg": "^0.45.1",
-    "bcryptjs": "^3.0.2",
-    "dotenv": "^17.2.2",
     "effect": "^3.17.13",
-    "pg": "^8.16.3"
   }
 }

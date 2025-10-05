@@ -4,7 +4,7 @@
 import { Context, Data, Effect, Layer, Schema } from "effect";
 import bcrypt from "bcryptjs";
 import { Db } from "../config/Db";
-import { UserCreateInput, UserSchema, UserRow, User } from "../types/User";
+import { UserCreateInput, UserSchema, UserRow, User } from "@hive/shared";
 
 type ErrorCode =
   | "USER_CREATION_FAILED"
@@ -48,7 +48,7 @@ const handleSqlError = (error: any) => {
   }
   return new UserServiceError({
     code: "USER_CREATION_FAILED",
-    message: error.message,
+    message: `This is coming ${error.message}`,
   });
 };
 
