@@ -1,4 +1,6 @@
 import { Schema } from "effect";
-import { UserSchema } from "../schema/User";
+import { UserCreateSchema, UserSchema, UserLoginSchema } from "../schema/User";
 
 export type User = Schema.Schema.Type<typeof UserSchema>;
+export type UserCreate = Schema.Schema.Type<typeof UserCreateSchema>;
+export type UserLogin = Schema.Schema.Type<typeof UserLoginSchema>;

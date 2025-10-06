@@ -1,10 +1,7 @@
-// Need to create user servier that
-// will proivde createuser, finduserbyname, and find by id
-
 import { Context, Data, Effect, Layer, Schema } from "effect";
 import bcrypt from "bcryptjs";
 import { Db } from "../config/Db";
-import { UserCreateInput, UserSchema, UserRow, User } from "@hive/shared";
+import { UserCreateSchema, UserSchema, UserRow, User } from "@hive/shared";
 
 type ErrorCode =
   | "USER_CREATION_FAILED"
@@ -57,7 +54,7 @@ const passwordHash = (password: string) =>
     handleUserServiceError("USER_CREATION_FAILED", "Password hashing failed"),
   );
 
-const validateAndCrate = Schema.decodeUnknown(UserCreateInput);
+const validateAndCrate = Schema.decodeUnknown(UserCreateSchema);
 const parseUser = Schema.decodeUnknown(UserSchema);
 
 const result = (sqlQueryResult: any) =>

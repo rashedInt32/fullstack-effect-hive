@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-export const UserCreateInput = Schema.Struct({
+export const UserCreateSchema = Schema.Struct({
   username: Schema.String.pipe(
     Schema.minLength(3),
     Schema.maxLength(50),
@@ -8,6 +8,11 @@ export const UserCreateInput = Schema.Struct({
   ),
   password: Schema.String.pipe(Schema.minLength(8)),
   email: Schema.optional(Schema.String),
+});
+
+export const UserLoginSchema = Schema.Struct({
+  username: Schema.String,
+  password: Schema.String,
 });
 
 export const UserRow = Schema.Struct({
