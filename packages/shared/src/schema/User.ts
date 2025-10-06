@@ -33,7 +33,7 @@ export const UserServiceErrorSchema = Schema.Struct({
     "USERNAME_ALREADY_EXISTS",
     "EMAIL_ALREADY_EXISTS",
     "INVALID_CREDENTIALS",
-    "ITERNAL_USER_ERROR",
+    "INTERNAL_USER_ERROR",
   ),
 });
 

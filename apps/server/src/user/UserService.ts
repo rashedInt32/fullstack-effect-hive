@@ -32,7 +32,7 @@ export interface UserService {
 export const UserService = Context.GenericTag<UserService>("UserService");
 
 const decodeCreate = Schema.decodeUnknown(UserCreateSchema);
-const decodeUser = Schema.decodeUnknown(UserSchema);
+export const decodeUser = Schema.decodeUnknown(UserSchema);
 const decodeAuth = Schema.decodeUnknown(UserLoginSchema);
 
 const passwordHash = (password: string) =>
@@ -63,13 +63,13 @@ const mapSqlError = (err: any): UserServiceError => {
   const code = inner?.code;
 
   if (code === "23505") {
-    if (constraint.includes === "users_username_key") {
+    if (constraint.includes("users_username_key")) {
       return new UserServiceError({
         code: "USERNAME_ALREADY_EXISTS",
         message: "Ussername already exist",
       });
     }
-    if (constraint.includes === "users_email_key") {
+    if (constraint.includes("users_email_key")) {
       return new UserServiceError({
         code: "EMAIL_ALREADY_EXISTS",
         message: "Email already exist",
@@ -94,7 +94,7 @@ const toUser = (sqlQueryResult: any) =>
     Effect.mapError(
       () =>
         new UserServiceError({
-          code: "ITERNAL_USER_ERROR",
+          code: "INTERNAL_USER_ERROR",
           message: "Invalidate user data return by query",
         }),
     ),
@@ -164,7 +164,7 @@ export const UserServiceLive = Layer.effect(
           const password_hash = yield* passwordHash(password);
 
           const sql = yield* sqlSafe(
-            db`INSERT INTO users (username, email, password_hash) VALUES (${input.username}, ${password_hash}, ${input.email ?? null}) RETURNING id, username, email`,
+            db`INSERT INTO users (username, email, password_hash) VALUES (${input.username},  ${input.email ?? null}, ${password_hash}) RETURNING id, username, email`,
           );
 
           return yield* toUser(sql[0]);
