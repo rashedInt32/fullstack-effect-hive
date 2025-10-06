@@ -1,21 +1,25 @@
 import { Context, Data, Effect, Layer, Schema } from "effect";
 import bcrypt from "bcryptjs";
 import { Db } from "../config/Db";
-import { UserCreateSchema, UserSchema, UserRow, User } from "@hive/shared";
+import {
+  UserCreateSchema,
+  UserSchema,
+  UserRow,
+  User,
+  UserError,
+  UserLoginSchema,
+} from "@hive/shared";
+import { SqlError } from "@effect/sql";
 
-type ErrorCode =
-  | "USER_CREATION_FAILED"
-  | "USER_NOT_FOUND"
-  | "INVALID_USER_ID"
-  | "USERNAME_ALREADY_EXISTS"
-  | "EMAIL_ALREADY_EXISTS";
-
-export class UserServiceError extends Data.TaggedError("UserServiceError")<{
-  readonly message: string;
-  readonly code: ErrorCode;
-}> {}
+export class UserServiceError extends Data.TaggedError(
+  "UserServiceError",
+)<UserError> {}
 
 export interface UserService {
+  authenticate: (
+    username: string,
+    password: string,
+  ) => Effect.Effect<User, UserServiceError>;
   create: (
     username: string,
     password: string,
@@ -27,41 +31,72 @@ export interface UserService {
 
 export const UserService = Context.GenericTag<UserService>("UserService");
 
-const handleUserServiceError = (code: ErrorCode, message: string) =>
-  Effect.mapError(
-    (err: any) =>
-      new UserServiceError({
-        code,
-        message: `${message} ${err.message}`,
-      }),
+const decodeCreate = Schema.decodeUnknown(UserCreateSchema);
+const decodeUser = Schema.decodeUnknown(UserSchema);
+const decodeAuth = Schema.decodeUnknown(UserLoginSchema);
+
+const passwordHash = (password: string) =>
+  Effect.tryPromise(() => bcrypt.hash(password, 10)).pipe(
+    Effect.mapError(
+      () =>
+        new UserServiceError({
+          code: "USER_CREATION_FAILED",
+          message: "Password hashing failed",
+        }),
+    ),
   );
 
-const handleSqlError = (error: any) => {
-  if (error.code === "23505") {
+const comparePassword = (password: string, password_hash: string) =>
+  Effect.tryPromise(() => bcrypt.compare(password, password_hash)).pipe(
+    Effect.mapError(
+      () =>
+        new UserServiceError({
+          code: "INVALID_CREDENTIALS",
+          message: "Password matching failed",
+        }),
+    ),
+  );
+
+const mapSqlError = (err: any): UserServiceError => {
+  const inner = err?.cause ?? err;
+  const constraint = inner?.constraint_name || "";
+  const code = inner?.code;
+
+  if (code === "23505") {
+    if (constraint.includes === "users_username_key") {
+      return new UserServiceError({
+        code: "USERNAME_ALREADY_EXISTS",
+        message: "Ussername already exist",
+      });
+    }
+    if (constraint.includes === "users_email_key") {
+      return new UserServiceError({
+        code: "EMAIL_ALREADY_EXISTS",
+        message: "Email already exist",
+      });
+    }
     return new UserServiceError({
       code: "USER_CREATION_FAILED",
-      message: "User Already exist",
+      message: "Duplicate key",
     });
   }
   return new UserServiceError({
     code: "USER_CREATION_FAILED",
-    message: `This is coming ${error.message}`,
+    message: inner?.detail || err?.message,
   });
 };
 
-const passwordHash = (password: string) =>
-  Effect.tryPromise(() => bcrypt.hash(password, 10)).pipe(
-    handleUserServiceError("USER_CREATION_FAILED", "Password hashing failed"),
-  );
+const sqlSafe = <A, R>(eff: Effect.Effect<A, SqlError.SqlError, R>) =>
+  eff.pipe(Effect.mapError(mapSqlError));
 
-const validateAndCrate = Schema.decodeUnknown(UserCreateSchema);
-const parseUser = Schema.decodeUnknown(UserSchema);
-
-const result = (sqlQueryResult: any) =>
-  parseUser(sqlQueryResult).pipe(
-    handleUserServiceError(
-      "USER_NOT_FOUND",
-      "Invalidate user data return by query",
+const toUser = (sqlQueryResult: any) =>
+  decodeUser(sqlQueryResult).pipe(
+    Effect.mapError(
+      () =>
+        new UserServiceError({
+          code: "ITERNAL_USER_ERROR",
+          message: "Invalidate user data return by query",
+        }),
     ),
   );
 
@@ -71,44 +106,85 @@ export const UserServiceLive = Layer.effect(
     const db = yield* Db;
 
     return UserService.of({
+      authenticate: (username: string, password: string) =>
+        Effect.gen(function* () {
+          const input = yield* decodeAuth({ username, password }).pipe(
+            Effect.mapError(
+              () =>
+                new UserServiceError({
+                  code: "USER_VALIDATION_FAILED",
+                  message: "Username and Password both required",
+                }),
+            ),
+          );
+
+          const rows = yield* sqlSafe(
+            db`SELECT id, username, password_hash FROM users WHERE username = ${input.username} LIMIT 1`,
+          );
+          if (rows.length === 0) {
+            return yield* Effect.fail(
+              new UserServiceError({
+                code: "USER_NOT_FOUND",
+                message: "User not found ",
+              }),
+            );
+          }
+
+          const isPasswordOk = yield* comparePassword(
+            input.password,
+            rows[0]?.password_hash as string,
+          );
+
+          if (!isPasswordOk) {
+            return yield* Effect.fail(
+              new UserServiceError({
+                code: "INVALID_CREDENTIALS",
+                message: "Password doesnt match",
+              }),
+            );
+          }
+
+          return yield* toUser(rows);
+        }),
       create: (username: string, password: string, email?: string) =>
         Effect.gen(function* () {
-          const input = yield* validateAndCrate({
+          const input = yield* decodeCreate({
             username,
             password,
             email,
           }).pipe(
-            handleUserServiceError(
-              "USER_CREATION_FAILED",
-              "Data validation failed",
+            Effect.mapError(
+              () =>
+                new UserServiceError({
+                  code: "USER_VALIDATION_FAILED",
+                  message: "Data validation failed",
+                }),
             ),
           );
           const password_hash = yield* passwordHash(password);
 
-          const sql =
-            yield* db`INSERT INTO users (username, email, password_hash) VALUES (${input.username}, ${password_hash}, ${input.email ?? null}) RETURNING id, username, email`.pipe(
-              Effect.mapError(handleSqlError),
-            );
+          const sql = yield* sqlSafe(
+            db`INSERT INTO users (username, email, password_hash) VALUES (${input.username}, ${password_hash}, ${input.email ?? null}) RETURNING id, username, email`,
+          );
 
-          return yield* result(sql[0]);
+          return yield* toUser(sql[0]);
         }),
+
       findByName: (username: string) =>
         Effect.gen(function* () {
-          const res =
-            yield* db`SELECT id, username, email FROM users WHERE username = ${username} LIMIT 1`.pipe(
-              handleUserServiceError("USER_NOT_FOUND", "User name not found"),
-            );
-
-          return yield* result(res[0]);
+          const res = yield* sqlSafe(
+            db`SELECT id, username, email FROM users WHERE username = ${username} LIMIT 1`,
+          );
+          return yield* toUser(res[0]);
         }),
+
       findById: (id: string) =>
         Effect.gen(function* () {
-          const res =
-            yield* db`SELECT id, username, email FROM users WHERE id = ${id} LIMIT 1`.pipe(
-              handleUserServiceError("USER_NOT_FOUND", "User id not found"),
-            );
+          const res = yield* sqlSafe(
+            db`SELECT id, username, email FROM users WHERE id = ${id} LIMIT 1`,
+          );
 
-          return yield* result(res[0]);
+          return yield* toUser(res[0]);
         }),
     });
   }),

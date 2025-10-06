@@ -27,10 +27,13 @@ export const UserServiceErrorSchema = Schema.Struct({
   message: Schema.String,
   code: Schema.Literal(
     "USER_CREATION_FAILED",
+    "USER_VALIDATION_FAILED",
     "USER_NOT_FOUND",
     "INVALID_USER_ID",
     "USERNAME_ALREADY_EXISTS",
     "EMAIL_ALREADY_EXISTS",
+    "INVALID_CREDENTIALS",
+    "ITERNAL_USER_ERROR",
   ),
 });
 
