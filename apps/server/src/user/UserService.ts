@@ -89,7 +89,7 @@ const mapSqlError = (err: any): UserServiceError => {
 const sqlSafe = <A, R>(eff: Effect.Effect<A, SqlError.SqlError, R>) =>
   eff.pipe(Effect.mapError(mapSqlError));
 
-const toUser = (sqlQueryResult: UserRow) =>
+const toUser = (sqlQueryResult: unknown) =>
   decodeUser(sqlQueryResult).pipe(
     Effect.mapError(
       (err) =>
@@ -144,7 +144,7 @@ export const UserServiceLive = Layer.effect(
             );
           }
 
-          return yield* toUser(rows[0] as UserRow);
+          return yield* toUser(rows[0]);
         }),
       create: (username: string, password: string, email?: string) =>
         Effect.gen(function* () {
@@ -169,7 +169,7 @@ export const UserServiceLive = Layer.effect(
 
           yield* Console.log("user created", JSON.stringify(sql[0]));
 
-          return yield* toUser(sql[0] as UserRow);
+          return yield* toUser(sql[0]);
         }),
 
       findByName: (username: string) =>
@@ -186,7 +186,7 @@ export const UserServiceLive = Layer.effect(
             db`SELECT id, username, email FROM users WHERE id = ${id} LIMIT 1`,
           );
 
-          return yield* toUser(res[0] as UserRow);
+          return yield* toUser(res[0]);
         }),
     });
   }),
