@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Layer, Schema } from "effect";
+import { Console, Context, Data, Effect, Layer, Schema } from "effect";
 import bcrypt from "bcryptjs";
 import { Db } from "../config/Db";
 import {
@@ -89,13 +89,13 @@ const mapSqlError = (err: any): UserServiceError => {
 const sqlSafe = <A, R>(eff: Effect.Effect<A, SqlError.SqlError, R>) =>
   eff.pipe(Effect.mapError(mapSqlError));
 
-const toUser = (sqlQueryResult: any) =>
+const toUser = (sqlQueryResult: UserRow) =>
   decodeUser(sqlQueryResult).pipe(
     Effect.mapError(
-      () =>
+      (err) =>
         new UserServiceError({
           code: "INTERNAL_USER_ERROR",
-          message: "Invalidate user data return by query",
+          message: "Invalidate user data return by query" + JSON.stringify(err),
         }),
     ),
   );
@@ -119,7 +119,7 @@ export const UserServiceLive = Layer.effect(
           );
 
           const rows = yield* sqlSafe(
-            db`SELECT id, username, password_hash FROM users WHERE username = ${input.username} LIMIT 1`,
+            db`SELECT id, username, email, password_hash FROM users WHERE username = ${input.username} LIMIT 1`,
           );
           if (rows.length === 0) {
             return yield* Effect.fail(
@@ -144,7 +144,7 @@ export const UserServiceLive = Layer.effect(
             );
           }
 
-          return yield* toUser(rows);
+          return yield* toUser(rows[0] as UserRow);
         }),
       create: (username: string, password: string, email?: string) =>
         Effect.gen(function* () {
@@ -167,7 +167,9 @@ export const UserServiceLive = Layer.effect(
             db`INSERT INTO users (username, email, password_hash) VALUES (${input.username},  ${input.email ?? null}, ${password_hash}) RETURNING id, username, email`,
           );
 
-          return yield* toUser(sql[0]);
+          yield* Console.log("user created", JSON.stringify(sql[0]));
+
+          return yield* toUser(sql[0] as UserRow);
         }),
 
       findByName: (username: string) =>
@@ -175,7 +177,7 @@ export const UserServiceLive = Layer.effect(
           const res = yield* sqlSafe(
             db`SELECT id, username, email FROM users WHERE username = ${username} LIMIT 1`,
           );
-          return yield* toUser(res[0]);
+          return yield* toUser(res[0] as UserRow);
         }),
 
       findById: (id: string) =>
@@ -184,7 +186,7 @@ export const UserServiceLive = Layer.effect(
             db`SELECT id, username, email FROM users WHERE id = ${id} LIMIT 1`,
           );
 
-          return yield* toUser(res[0]);
+          return yield* toUser(res[0] as UserRow);
         }),
     });
   }),

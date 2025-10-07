@@ -15,7 +15,7 @@ export const UserLoginSchema = Schema.Struct({
   password: Schema.String,
 });
 
-export const UserRow = Schema.Struct({
+export const UserRowSchema = Schema.Struct({
   id: Schema.String,
   username: Schema.String,
   email: Schema.Union(Schema.String, Schema.Null),
@@ -37,4 +37,4 @@ export const UserServiceErrorSchema = Schema.Struct({
   ),
 });
 
-export const UserSchema = UserRow.omit("password_hash", "created_at");
+export const UserSchema = UserRowSchema.omit("password_hash", "created_at");

@@ -13,6 +13,7 @@ import {
   UserLogin,
   UserCreate,
 } from "@hive/shared";
+import { UserService } from "../../user/UserService";
 
 export const UserApi = HttpApi.make("UserApi").add(
   HttpApiGroup.make("user")
@@ -32,15 +33,35 @@ export const UserApi = HttpApi.make("UserApi").add(
 
 const handleLogin = ({ payload }: { payload: UserLogin }) =>
   Effect.gen(function* () {
-    yield* Console.log(payload);
-    return { username: "", id: "", email: "" };
-  });
+    const userService = yield* UserService;
+    const result = yield* userService.authenticate(
+      payload.username,
+      payload.password,
+    );
+    return result;
+  }).pipe(
+    Effect.mapError((err) => ({
+      code: err.code,
+      message: err.message,
+    })),
+  );
 
 const handleSignup = ({ payload }: { payload: UserCreate }) =>
   Effect.gen(function* () {
+    const userService = yield* UserService;
     yield* Console.log(payload);
-    return { username: "", id: "", email: "" };
-  });
+    const result = yield* userService.create(
+      payload.username,
+      payload.password,
+      payload.email,
+    );
+    return result;
+  }).pipe(
+    Effect.mapError((err) => ({
+      code: err.code,
+      message: err.message,
+    })),
+  );
 
 export const UserGroupLive = HttpApiBuilder.group(UserApi, "user", (handlers) =>
   handlers.handle("login", handleLogin).handle("signup", handleSignup),
