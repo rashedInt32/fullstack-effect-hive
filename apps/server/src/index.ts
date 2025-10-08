@@ -10,12 +10,16 @@ import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
 import { UserServiceLive } from "./user/UserService";
 import { UserApiLive } from "./api/routes/user";
+import { JwtServiceLive } from "./jwt/JwtService";
+import { AppConfigLive } from "./config/Config";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(HttpApiSwagger.layer()),
   Layer.provide(UserApiLive),
   Layer.provide(UserServiceLive),
+  Layer.provide(JwtServiceLive),
   Layer.provide(DbLive),
+  Layer.provide(AppConfigLive),
   Layer.tap(() => Console.log("Server listenning at port ")),
   Layer.provide(NodeHttpServer.layer(createServer, { port: 3002 })),
 );

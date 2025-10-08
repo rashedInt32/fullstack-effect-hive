@@ -4,7 +4,7 @@ import {
   HttpApiEndpoint,
   HttpApiGroup,
 } from "@effect/platform";
-import { Console, Effect, Layer } from "effect";
+import { Console, Effect, Layer, Schema } from "effect";
 import {
   UserCreateSchema,
   UserSchema,

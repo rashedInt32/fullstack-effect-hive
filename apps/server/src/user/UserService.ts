@@ -10,6 +10,7 @@ import {
   UserLoginSchema,
 } from "@hive/shared";
 import { SqlError } from "@effect/sql";
+import { JwtError, JwtService } from "../jwt/JwtService";
 
 export class UserServiceError extends Data.TaggedError(
   "UserServiceError",
@@ -19,7 +20,7 @@ export interface UserService {
   authenticate: (
     username: string,
     password: string,
-  ) => Effect.Effect<User, UserServiceError>;
+  ) => Effect.Effect<User, UserServiceError | JwtError>;
   create: (
     username: string,
     password: string,
@@ -104,6 +105,7 @@ export const UserServiceLive = Layer.effect(
   UserService,
   Effect.gen(function* () {
     const db = yield* Db;
+    const jwtService = yield* JwtService;
 
     return UserService.of({
       authenticate: (username: string, password: string) =>
@@ -144,7 +146,16 @@ export const UserServiceLive = Layer.effect(
             );
           }
 
-          return yield* toUser(rows[0]);
+          const user = yield* toUser(rows[0]);
+          const token = yield* jwtService.sign({
+            email: user.email,
+            id: user.id,
+          });
+
+          return {
+            ...user,
+            token,
+          };
         }),
       create: (username: string, password: string, email?: string) =>
         Effect.gen(function* () {

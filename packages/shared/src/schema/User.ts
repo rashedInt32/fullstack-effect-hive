@@ -34,6 +34,8 @@ export const UserServiceErrorSchema = Schema.Struct({
     "EMAIL_ALREADY_EXISTS",
     "INVALID_CREDENTIALS",
     "INTERNAL_USER_ERROR",
+    "JWT_SIGN_ERROR",
+    "JWT_VERIFY_ERROR",
   ),
 });
 
