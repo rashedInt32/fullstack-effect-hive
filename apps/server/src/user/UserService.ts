@@ -11,6 +11,7 @@ import {
 } from "@hive/shared";
 import { SqlError } from "@effect/sql";
 import { JwtError, JwtService } from "../jwt/JwtService";
+import { yieldNowWith } from "effect/Micro";
 
 export class UserServiceError extends Data.TaggedError(
   "UserServiceError",
@@ -25,7 +26,7 @@ export interface UserService {
     username: string,
     password: string,
     email?: string,
-  ) => Effect.Effect<User, UserServiceError>;
+  ) => Effect.Effect<User, UserServiceError | JwtError>;
   findByName: (username: string) => Effect.Effect<User, UserServiceError>;
   findById: (id: string) => Effect.Effect<User, UserServiceError>;
 }
@@ -178,9 +179,16 @@ export const UserServiceLive = Layer.effect(
             db`INSERT INTO users (username, email, password_hash) VALUES (${input.username},  ${input.email ?? null}, ${password_hash}) RETURNING id, username, email`,
           );
 
-          yield* Console.log("user created", JSON.stringify(sql[0]));
+          const user = yield* toUser(sql[0]);
+          const token = yield* jwtService.sign({
+            email: user.email,
+            id: user.id,
+          });
 
-          return yield* toUser(sql[0]);
+          return {
+            ...user,
+            token,
+          };
         }),
 
       findByName: (username: string) =>

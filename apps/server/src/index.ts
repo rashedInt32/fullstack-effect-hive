@@ -9,7 +9,7 @@ import { Layer, Console } from "effect";
 import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
 import { UserServiceLive } from "./user/UserService";
-import { UserApiLive } from "./api/routes/user";
+import { UserApiLive } from "./api/routes/userRoute";
 import { JwtServiceLive } from "./jwt/JwtService";
 import { AppConfigLive } from "./config/Config";
 

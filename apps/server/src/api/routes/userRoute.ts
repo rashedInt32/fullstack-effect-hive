@@ -15,18 +15,23 @@ import {
 } from "@hive/shared";
 import { UserService } from "../../user/UserService";
 
+const UserSchemaWithToken = Schema.Struct({
+  ...UserSchema.fields,
+  token: Schema.optional(Schema.String),
+});
+
 export const UserApi = HttpApi.make("UserApi").add(
   HttpApiGroup.make("user")
     .add(
       HttpApiEndpoint.post("login", "/login")
         .setPayload(UserLoginSchema)
-        .addSuccess(UserSchema)
+        .addSuccess(UserSchemaWithToken)
         .addError(UserServiceErrorSchema),
     )
     .add(
       HttpApiEndpoint.post("signup", "/signup")
         .setPayload(UserCreateSchema)
-        .addSuccess(UserSchema)
+        .addSuccess(UserSchemaWithToken)
         .addError(UserServiceErrorSchema),
     ),
 );
@@ -38,6 +43,7 @@ const handleLogin = ({ payload }: { payload: UserLogin }) =>
       payload.username,
       payload.password,
     );
+    yield* Console.log(result);
     return result;
   }).pipe(
     Effect.mapError((err) => ({
