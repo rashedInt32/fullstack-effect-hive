@@ -11,7 +11,6 @@ import {
 } from "@hive/shared";
 import { SqlError } from "@effect/sql";
 import { JwtError, JwtService } from "../jwt/JwtService";
-import { yieldNowWith } from "effect/Micro";
 
 export class UserServiceError extends Data.TaggedError(
   "UserServiceError",
@@ -158,6 +157,7 @@ export const UserServiceLive = Layer.effect(
             token,
           };
         }),
+
       create: (username: string, password: string, email?: string) =>
         Effect.gen(function* () {
           const input = yield* decodeCreate({

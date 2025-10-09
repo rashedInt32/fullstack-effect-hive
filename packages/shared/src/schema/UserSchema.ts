@@ -36,6 +36,8 @@ export const UserServiceErrorSchema = Schema.Struct({
     "INTERNAL_USER_ERROR",
     "JWT_SIGN_ERROR",
     "JWT_VERIFY_ERROR",
+    "INVALID_TOKEN",
+    "MISSING_TOKEN",
   ),
 });
 

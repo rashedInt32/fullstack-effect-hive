@@ -5,7 +5,7 @@ import {
   UserLoginSchema,
   UserServiceErrorSchema,
   UserRowSchema,
-} from "../schema/User";
+} from "../schema/UserSchema";
 
 export type User = Schema.Schema.Type<typeof UserSchema>;
 export type UserRow = Schema.Schema.Type<typeof UserRowSchema>;
