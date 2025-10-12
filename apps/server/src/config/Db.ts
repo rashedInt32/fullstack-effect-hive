@@ -11,6 +11,8 @@ export const DbLive = Layer.unwrapEffect(
     return PgClient.layer({
       url: Redacted.make(DATABASE_URL),
       ssl: true,
+      connectTimeout: 30000,
+      idleTimeout: 30000,
     });
   }).pipe(Effect.provide(AppConfigLive)),
 );

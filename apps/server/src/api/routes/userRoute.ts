@@ -24,7 +24,6 @@ const UserSchemaWithToken = Schema.Struct({
 export const UserApi = HttpApi.make("UserApi")
   .add(
     HttpApiGroup.make("auth")
-      .prefix("/auth")
       .add(
         HttpApiEndpoint.post("login", "/login")
           .setPayload(UserLoginSchema)
@@ -39,18 +38,16 @@ export const UserApi = HttpApi.make("UserApi")
       ),
   )
   .add(
-    HttpApiGroup.make("user")
-      .prefix("/user")
-      .add(
-        HttpApiEndpoint.get("profile", "/profile/:id")
-          .setPath(
-            Schema.Struct({
-              id: Schema.String,
-            }),
-          )
-          .addSuccess(UserSchema)
-          .addError(UserServiceErrorSchema),
-      ),
+    HttpApiGroup.make("user").add(
+      HttpApiEndpoint.get("profile", "/profile/:id")
+        .setPath(
+          Schema.Struct({
+            id: Schema.String,
+          }),
+        )
+        .addSuccess(UserSchema)
+        .addError(UserServiceErrorSchema),
+    ),
   );
 
 const handleLogin = ({ payload }: { payload: UserLogin }) =>
@@ -61,6 +58,7 @@ const handleLogin = ({ payload }: { payload: UserLogin }) =>
       payload.password,
     );
     yield* Console.log(result);
+
     return result;
   }).pipe(
     Effect.mapError((err) => ({
@@ -93,8 +91,10 @@ export const AuthGroupLive = HttpApiBuilder.group(UserApi, "auth", (handlers) =>
 const handleProfile = ({ path }: { path: { id: string } }) =>
   Effect.gen(function* () {
     const userService = yield* UserService;
+    yield* Console.log("Calling profile route handler", path);
     yield* requireAuth;
     const result = yield* userService.findById(path.id);
+    yield* Console.log(result);
 
     return result;
   }).pipe(

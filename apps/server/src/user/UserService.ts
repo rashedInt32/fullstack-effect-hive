@@ -1,15 +1,14 @@
-import { Console, Context, Data, Effect, Layer, Schema } from "effect";
-import bcrypt from "bcryptjs";
+import { Context, Data, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
+import { UserRow, User, UserError } from "@hive/shared";
 import {
-  UserCreateSchema,
-  UserSchema,
-  UserRow,
-  User,
-  UserError,
-  UserLoginSchema,
-} from "@hive/shared";
-import { SqlError } from "@effect/sql";
+  comparePassword,
+  decodeAuth,
+  decodeCreate,
+  passwordHash,
+  sqlSafe,
+  toUser,
+} from "./Utils";
 import { JwtError, JwtService } from "../jwt/JwtService";
 
 export class UserServiceError extends Data.TaggedError(
@@ -31,75 +30,6 @@ export interface UserService {
 }
 
 export const UserService = Context.GenericTag<UserService>("UserService");
-
-const decodeCreate = Schema.decodeUnknown(UserCreateSchema);
-export const decodeUser = Schema.decodeUnknown(UserSchema);
-const decodeAuth = Schema.decodeUnknown(UserLoginSchema);
-
-const passwordHash = (password: string) =>
-  Effect.tryPromise(() => bcrypt.hash(password, 10)).pipe(
-    Effect.mapError(
-      () =>
-        new UserServiceError({
-          code: "USER_CREATION_FAILED",
-          message: "Password hashing failed",
-        }),
-    ),
-  );
-
-const comparePassword = (password: string, password_hash: string) =>
-  Effect.tryPromise(() => bcrypt.compare(password, password_hash)).pipe(
-    Effect.mapError(
-      () =>
-        new UserServiceError({
-          code: "INVALID_CREDENTIALS",
-          message: "Password matching failed",
-        }),
-    ),
-  );
-
-const mapSqlError = (err: any): UserServiceError => {
-  const inner = err?.cause ?? err;
-  const constraint = inner?.constraint_name || "";
-  const code = inner?.code;
-
-  if (code === "23505") {
-    if (constraint.includes("users_username_key")) {
-      return new UserServiceError({
-        code: "USERNAME_ALREADY_EXISTS",
-        message: "Ussername already exist",
-      });
-    }
-    if (constraint.includes("users_email_key")) {
-      return new UserServiceError({
-        code: "EMAIL_ALREADY_EXISTS",
-        message: "Email already exist",
-      });
-    }
-    return new UserServiceError({
-      code: "USER_CREATION_FAILED",
-      message: "Duplicate key",
-    });
-  }
-  return new UserServiceError({
-    code: "USER_CREATION_FAILED",
-    message: inner?.detail || err?.message,
-  });
-};
-
-const sqlSafe = <A, R>(eff: Effect.Effect<A, SqlError.SqlError, R>) =>
-  eff.pipe(Effect.mapError(mapSqlError));
-
-const toUser = (sqlQueryResult: unknown) =>
-  decodeUser(sqlQueryResult).pipe(
-    Effect.mapError(
-      (err) =>
-        new UserServiceError({
-          code: "INTERNAL_USER_ERROR",
-          message: "Invalidate user data return by query" + JSON.stringify(err),
-        }),
-    ),
-  );
 
 export const UserServiceLive = Layer.effect(
   UserService,
