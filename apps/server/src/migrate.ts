@@ -5,7 +5,7 @@ import { AppConfigLive } from "./config/Config";
 import { join } from "path";
 import { readFileSync } from "fs";
 
-const sqlFiles = ["user/UserModel.sql"];
+const sqlFiles = ["user/UserModel.sql", "room/RoomModel.sql"];
 
 const migrate = Effect.gen(function* () {
   yield* Console.log("Migration starts...");
