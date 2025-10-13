@@ -64,10 +64,10 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {sidebarOpen && (
-        <div className="w-60 bg-muted/40 border-r flex flex-col">
-          <div className="h-14 flex items-center px-4 border-b">
+        <div className="w-60 bg-slate-900/50 backdrop-blur-xl border-r border-slate-800 flex flex-col">
+          <div className="h-14 flex items-center px-4 border-b border-slate-800">
             <h2 className="font-semibold text-lg">Workspace</h2>
           </div>
 
@@ -130,7 +130,7 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div className="p-2 border-t">
+          <div className="p-2 border-t border-slate-800">
             <div className="flex items-center gap-2 px-2 py-1.5">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/avatars/you.jpg" />
@@ -146,7 +146,7 @@ export default function ChatPage() {
       )}
 
       <div className="flex-1 flex flex-col">
-        <div className="h-14 border-b flex items-center px-4 gap-2">
+        <div className="h-14 border-b border-slate-800 flex items-center px-4 gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -186,7 +186,7 @@ export default function ChatPage() {
           ))}
         </div>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t border-slate-800">
           <div className="flex gap-2">
             <Input
               placeholder={`Message #${selectedChannel.name}`}
