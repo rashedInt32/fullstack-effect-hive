@@ -1,11 +1,9 @@
-import { Context, Data, Effect, Layer, Schema } from "effect";
-import bcrypt from "bcryptjs";
+import { Context, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
-import { UserSchema, User, UserError, UserLoginSchema } from "@hive/shared";
-import { SqlError } from "@effect/sql";
-import { comparePassword, decodeAuth, sqlSafe, toUser } from "../user/Utils";
 import { JwtError, JwtService } from "../jwt/JwtService";
+import { User } from "@hive/shared";
 import { UserServiceError } from "../user/UserService";
+import { comparePassword, decodeAuth, sqlSafe, toUser } from "../user/Utils";
 
 export interface AuthService {
   authenticate: (

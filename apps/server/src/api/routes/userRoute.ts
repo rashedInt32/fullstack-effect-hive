@@ -15,6 +15,7 @@ import {
 } from "@hive/shared";
 import { UserService } from "../../user/UserService";
 import { requireAuth } from "../../auth/AuthMiddleware";
+import { AuthService } from "../../auth/AuthService";
 
 const UserSchemaWithToken = Schema.Struct({
   ...UserSchema.fields,
@@ -35,25 +36,28 @@ export const UserApi = HttpApi.make("UserApi")
           .setPayload(UserCreateSchema)
           .addSuccess(UserSchemaWithToken)
           .addError(UserServiceErrorSchema),
-      ),
+      )
+      .prefix("/auth"),
   )
   .add(
-    HttpApiGroup.make("user").add(
-      HttpApiEndpoint.get("profile", "/profile/:id")
-        .setPath(
-          Schema.Struct({
-            id: Schema.String,
-          }),
-        )
-        .addSuccess(UserSchema)
-        .addError(UserServiceErrorSchema),
-    ),
+    HttpApiGroup.make("user")
+      .add(
+        HttpApiEndpoint.get("profile", "/profile/:id")
+          .setPath(
+            Schema.Struct({
+              id: Schema.String,
+            }),
+          )
+          .addSuccess(UserSchema)
+          .addError(UserServiceErrorSchema),
+      )
+      .prefix("/user"),
   );
 
 const handleLogin = ({ payload }: { payload: UserLogin }) =>
   Effect.gen(function* () {
-    const userService = yield* UserService;
-    const result = yield* userService.authenticate(
+    const authService = yield* AuthService;
+    const result = yield* authService.authenticate(
       payload.username,
       payload.password,
     );
