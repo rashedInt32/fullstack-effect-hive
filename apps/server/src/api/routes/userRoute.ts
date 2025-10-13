@@ -42,12 +42,7 @@ export const UserApi = HttpApi.make("UserApi")
   .add(
     HttpApiGroup.make("user")
       .add(
-        HttpApiEndpoint.get("profile", "/profile/:id")
-          .setPath(
-            Schema.Struct({
-              id: Schema.String,
-            }),
-          )
+        HttpApiEndpoint.get("profile", "/profile")
           .addSuccess(UserSchema)
           .addError(UserServiceErrorSchema),
       )
@@ -92,12 +87,12 @@ export const AuthGroupLive = HttpApiBuilder.group(UserApi, "auth", (handlers) =>
   handlers.handle("login", handleLogin).handle("signup", handleSignup),
 );
 
-const handleProfile = ({ path }: { path: { id: string } }) =>
+const handleProfile = () =>
   Effect.gen(function* () {
     const userService = yield* UserService;
-    yield* Console.log("Calling profile route handler", path);
-    yield* requireAuth;
-    const result = yield* userService.findById(path.id);
+    const payload = yield* requireAuth;
+    yield* Console.log("Authenticated payload", payload);
+    const result = yield* userService.findById(payload.id as string);
     yield* Console.log(result);
 
     return result;

@@ -25,7 +25,7 @@ export const requireAuth: Effect.Effect<
   const token = authHeader.replace("Bearer ", "");
 
   const jwtService = yield* JwtService;
-  return yield* jwtService.verify(token).pipe(
+  const payload = yield* jwtService.verify(token).pipe(
     Effect.mapError(
       () =>
         new AuthError({
@@ -34,4 +34,5 @@ export const requireAuth: Effect.Effect<
         }),
     ),
   );
+  return payload;
 });
