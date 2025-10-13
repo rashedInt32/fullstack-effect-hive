@@ -3,7 +3,17 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Hash, Send, Menu, Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -62,6 +72,8 @@ const dummyMessages = [
 export default function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState(channels[0]!);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
     <div className="h-screen flex bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -77,9 +89,48 @@ export default function ChatPage() {
                 <span className="text-sm font-semibold text-muted-foreground">
                   Channels
                 </span>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Channel</DialogTitle>
+                      <DialogDescription>
+                        Add a new channel to your workspace.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="channel-name">Channel Name</Label>
+                        <Input
+                          id="channel-name"
+                          placeholder="e.g. marketing"
+                          value={newChannelName}
+                          onChange={(e) => setNewChannelName(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsDialogOpen(false);
+                          setNewChannelName("");
+                        }}
+                      >
+                        Create Channel
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               {channels.map((channel) => (
@@ -130,7 +181,7 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div className="p-2 border-t border-slate-800">
+          <div className="p-2 pt-3 border-t border-slate-800">
             <div className="flex items-center gap-2 px-2 py-1.5">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/avatars/you.jpg" />
