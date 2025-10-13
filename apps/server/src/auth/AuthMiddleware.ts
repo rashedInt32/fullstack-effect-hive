@@ -1,5 +1,5 @@
 import { HttpServerRequest } from "@effect/platform";
-import { Data, Effect } from "effect";
+import { Console, Data, Effect } from "effect";
 import { JwtService } from "../jwt/JwtService";
 import { JWTPayload } from "jose";
 
@@ -14,8 +14,9 @@ export const requireAuth: Effect.Effect<
   HttpServerRequest.HttpServerRequest | JwtService
 > = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest;
-  const authHeader = request.headers.Authrization;
-  if (!authHeader || authHeader.startsWith("Bearer ")) {
+  const authHeader = request.headers.authorization;
+  yield* Console.log(`Auth Header: ${authHeader}`);
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return yield* new AuthError({
       code: "MISSING_TOKEN",
       message: "Token is not present in request header or invalide token",
