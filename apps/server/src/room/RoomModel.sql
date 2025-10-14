@@ -23,3 +23,8 @@ CREATE TABLE IF NOT EXISTS room_members (
   UNIQUE(room_id, user_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_room_members_room_id ON room_members(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_members_user_id ON room_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_created_by ON rooms(created_by);
+CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms(name);
+CREATE INDEX IF NOT EXISTS idx_rooms_type ON rooms(type);
