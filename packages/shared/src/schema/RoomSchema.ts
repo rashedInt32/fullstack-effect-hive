@@ -28,6 +28,7 @@ export const RoomRowSchema = Schema.Struct({
 export const RoomCreateSchema = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(200)),
   type: Schema.Literal("channel", "dm"),
+  created_by: Schema.String,
   description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
 });
 
@@ -46,7 +47,7 @@ export const RoomMemberAddSchema = Schema.Struct({
   role: Schema.optional(Schema.Literal("admin", "member")),
 });
 
-export const RoomWithMemberSchema = Schema.Struct({
+export const RoomWithMembersSchema = Schema.Struct({
   ...RoomRowSchema.fields,
   member_count: Schema.optional(Schema.Number),
   user_role: Schema.optional(Schema.Literal("owner", "admin", "member")),

@@ -6,12 +6,10 @@ import {
   RoomRowSchema,
   RoomSchema,
   RoomServiceErrorSchema,
-  RoomWithMemberSchema,
+  RoomWithMembersSchema,
 } from "../schema/RoomSchema";
 
-export type RoomServiceError = Schema.Schema.Type<
-  typeof RoomServiceErrorSchema
->;
+export type RoomError = Schema.Schema.Type<typeof RoomServiceErrorSchema>;
 
 export type RoomRow = Schema.Schema.Type<typeof RoomRowSchema>;
 
@@ -23,4 +21,4 @@ export type RoomMemberRow = Schema.Schema.Type<typeof RoomMemberRowSchema>;
 
 export type RoomMemberAdd = Schema.Schema.Type<typeof RoomMemberAddSchema>;
 
-export type RoomWithMember = Schema.Schema.Type<typeof RoomWithMemberSchema>;
+export type RoomWithMembers = Schema.Schema.Type<typeof RoomWithMembersSchema>;
