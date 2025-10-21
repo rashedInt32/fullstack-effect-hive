@@ -19,6 +19,8 @@ import {
   requireOwnerOrAdmin,
   sqlSafe,
   toRoom,
+  toRoomMember,
+  validateRoomExists,
 } from "./Utils";
 
 export class RoomServiceError extends Data.TaggedError(
@@ -41,15 +43,15 @@ export interface RoomService {
     userId: string,
     data: { name?: string; description?: string },
   ) => Effect.Effect<Room, RoomServiceError>;
-  // delete: (id: string, userId: string) => Effect.Effect<void, RoomServiceError>;
-  //
-  // addMember: (
-  //   roomId: string,
-  //   userId: string,
-  //   requesterId: string,
-  //   role: "admin" | "member",
-  // ) => Effect.Effect<RoomMemberRow, RoomServiceError>;
-  //
+  delete: (id: string, userId: string) => Effect.Effect<void, RoomServiceError>;
+
+  addMember: (
+    roomId: string,
+    userId: string,
+    requesterId: string,
+    role: "admin" | "member",
+  ) => Effect.Effect<RoomMemberRow, RoomServiceError>;
+
   // removeMember: (
   //   roomId: string,
   //   userId: string,
@@ -121,16 +123,7 @@ export const RoomServiceLive = Layer.effect(
             );
           }
 
-          const room = result[0] as RoomRow;
-          return {
-            id: room.id,
-            name: room.name,
-            type: room.type,
-            description: room.description,
-            created_by: room.created_by,
-            created_at: room.created_at,
-            updated_at: room.updated_at,
-          };
+          return yield* toRoom(result[0]);
         }),
 
       findById: (id: string) =>
@@ -138,7 +131,7 @@ export const RoomServiceLive = Layer.effect(
           const result = yield* sqlSafe(
             sql<RoomRow>`SELECT * FROM rooms WHERE id = ${id}`,
           );
-          return yield* toRoom(result[0], RoomSchema);
+          return yield* toRoom(result[0]);
         }),
 
       listByUser: (userId: string) =>
@@ -201,27 +194,44 @@ export const RoomServiceLive = Layer.effect(
             sql`UPDATE rooms SET ${sql.unsafe(update.join(", "))} WHERE id = ${id} RETURNING *`,
           );
 
-          if (query.length === 0) {
+          const room = yield* toRoom(query[0]);
+          return room;
+        }),
+      delete: (id: string, userId: string) =>
+        Effect.gen(function* () {
+          yield* requireOwnerOrAdmin(sql, id, userId);
+          return yield* sqlSafe(sql`DELETE FROM rooms WHERE id = ${id}`);
+        }),
+      addMember: (
+        roomId: string,
+        userId: string,
+        requesterId: string,
+        role: "admin" | "member",
+      ) =>
+        Effect.gen(function* () {
+          yield* requireOwnerOrAdmin(sql, roomId, requesterId);
+          yield* validateRoomExists(sql, roomId);
+
+          const existingMember = yield* sqlSafe(sql`SELECT
+            id, role, room_id 
+          FROM room_members
+          WHERE user_id = ${userId}
+          LIMIT 1`);
+
+          if (existingMember.length > 0) {
             return yield* Effect.fail(
               new RoomServiceError({
-                code: "ROOM_NOT_FOUND",
-                message: "Room not found",
+                code: "ROOM_MEMBER_ALREADY_EXISTS",
+                message: "Member already exist in the room",
               }),
             );
           }
 
-          const room = yield* decodeRoom(query[0]).pipe(
-            Effect.mapError(
-              (err) =>
-                new RoomServiceError({
-                  code: "INTERNAL_ROOM_ERROR",
-                  message:
-                    "Invalid room data returned by query: " +
-                    JSON.stringify(err),
-                }),
-            ),
+          const member = yield* sqlSafe(
+            sql`INSERT INTO room_members (user_id, room_id, role) VALUES (${userId}, ${roomId}, ${role}) RETURNING id, user_id, room_id, role, joined_at`,
           );
-          return room;
+
+          return yield* toRoomMember(member);
         }),
     });
   }),

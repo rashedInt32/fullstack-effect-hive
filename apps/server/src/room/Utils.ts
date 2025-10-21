@@ -2,6 +2,7 @@ import { Effect, Schema } from "effect";
 import {
   RoomCreateSchema,
   RoomError,
+  RoomMemberRowSchema,
   RoomSchema,
   RoomUpdateSchema,
 } from "@hive/shared";
@@ -11,6 +12,7 @@ import { RoomServiceError } from "./RoomService";
 export const decodeRoomCreate = Schema.decodeUnknown(RoomCreateSchema);
 export const decodeRoomUpdate = Schema.decodeUnknown(RoomUpdateSchema);
 export const decodeRoom = Schema.decodeUnknown(RoomSchema);
+export const decodeRoomMember = Schema.decodeUnknown(RoomMemberRowSchema);
 
 export const mapSqlError = (
   error: SqlError.SqlError,
@@ -29,7 +31,16 @@ export const validateRoomExists = (db: SqlClient.SqlClient, roomId: string) =>
     const room = yield* sqlSafe(
       db`SELECT id FROM rooms WHERE id = ${roomId} LIMIT 1`,
     );
-    return room;
+    return yield* decodeRoomMember(room[0]).pipe(
+      Effect.mapError(
+        (err) =>
+          new RoomServiceError({
+            code: "INTERNAL_ROOM_ERROR",
+            message:
+              "Invalid user data returned by query: " + JSON.stringify(err),
+          }),
+      ),
+    );
   });
 
 export const requireOwnerOrAdmin = (
@@ -44,7 +55,7 @@ export const requireOwnerOrAdmin = (
 
     if (
       members.length === 0 ||
-      ["owner", "admin"].includes(members[0]?.role as string)
+      !["owner", "admin"].includes(members[0]?.role as string)
     ) {
       return yield* Effect.fail(
         new RoomServiceError({
@@ -56,11 +67,21 @@ export const requireOwnerOrAdmin = (
     return members[0]?.role;
   });
 
-export const toRoom = <T extends typeof RoomSchema>(
-  sqlQueryResult: unknown,
-  decoderSchema: T,
-) => {
-  return Schema.decodeUnknown(decoderSchema)(sqlQueryResult).pipe(
+export const toRoom = (sqlQueryResult: unknown) => {
+  return decodeRoom(sqlQueryResult).pipe(
+    Effect.mapError(
+      (err) =>
+        new RoomServiceError({
+          code: "INTERNAL_ROOM_ERROR",
+          message:
+            "Invalid user data returned by query: " + JSON.stringify(err),
+        }),
+    ),
+  );
+};
+
+export const toRoomMember = (sqlQueryResult: unknown) => {
+  return decodeRoomMember(sqlQueryResult).pipe(
     Effect.mapError(
       (err) =>
         new RoomServiceError({
