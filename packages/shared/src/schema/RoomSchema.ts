@@ -12,6 +12,7 @@ export const RoomServiceErrorSchema = Schema.Struct({
     "ROOM_MEMBER_ALREADY_EXISTS",
     "CANNOT_REMOVE_OWNER",
     "INTERNAL_ROOM_ERROR",
+    "ROOM_QUERY_FAILED",
   ),
 });
 
@@ -29,6 +30,15 @@ export const RoomCreateSchema = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(200)),
   type: Schema.Literal("channel", "dm"),
   created_by: Schema.String,
+  description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
+});
+
+export const RoomUpdateSchema = Schema.Struct({
+  id: Schema.String,
+  userId: Schema.String,
+  name: Schema.optional(
+    Schema.String.pipe(Schema.minLength(1), Schema.maxLength(200)),
+  ),
   description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
 });
 

@@ -1,9 +1,16 @@
 import { Effect, Schema } from "effect";
-import { RoomCreateSchema, RoomError, RoomSchema } from "@hive/shared";
+import {
+  RoomCreateSchema,
+  RoomError,
+  RoomSchema,
+  RoomUpdateSchema,
+} from "@hive/shared";
 import { SqlClient, SqlError } from "@effect/sql";
 import { RoomServiceError } from "./RoomService";
 
 export const decodeRoomCreate = Schema.decodeUnknown(RoomCreateSchema);
+export const decodeRoomUpdate = Schema.decodeUnknown(RoomUpdateSchema);
+export const decodeRoom = Schema.decodeUnknown(RoomSchema);
 
 export const mapSqlError = (
   error: SqlError.SqlError,
@@ -49,17 +56,17 @@ export const requireOwnerOrAdmin = (
     return members[0]?.role;
   });
 
-export const toRoom = <T extends Schema.Schema.Any>(
+export const toRoom = <T extends typeof RoomSchema>(
   sqlQueryResult: unknown,
   decoderSchema: T,
 ) => {
-  const decoder = Schema.decodeUnknown(decoderSchema);
-  return decoder(sqlQueryResult).pipe(
+  return Schema.decodeUnknown(decoderSchema)(sqlQueryResult).pipe(
     Effect.mapError(
       (err) =>
         new RoomServiceError({
           code: "INTERNAL_ROOM_ERROR",
-          message: "Invalidate user data return by query" + JSON.stringify(err),
+          message:
+            "Invalid user data returned by query: " + JSON.stringify(err),
         }),
     ),
   );

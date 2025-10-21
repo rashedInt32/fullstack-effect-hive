@@ -4,12 +4,22 @@ import {
   RoomMemberAdd,
   RoomMemberRow,
   RoomRow,
+  RoomRowSchema,
+  RoomSchema,
   RoomWithMembers,
+  RoomWithMembersSchema,
 } from "@hive/shared";
-import { Context, Data, Effect, Layer } from "effect";
+import { Console, Context, Data, Effect, Layer, Schema } from "effect";
 import { Db } from "../config/Db";
 import { SqlClient, SqlError } from "@effect/sql";
-import { decodeRoomCreate, sqlSafe, toRoom } from "./Utils";
+import {
+  decodeRoom,
+  decodeRoomCreate,
+  decodeRoomUpdate,
+  requireOwnerOrAdmin,
+  sqlSafe,
+  toRoom,
+} from "./Utils";
 
 export class RoomServiceError extends Data.TaggedError(
   "RoomServiceError",
@@ -23,14 +33,14 @@ export interface RoomService {
     description?: string,
   ) => Effect.Effect<Room, RoomServiceError>;
   findById: (id: string) => Effect.Effect<Room, RoomServiceError>;
-  // listByUser: (
-  //   userId: string,
-  // ) => Effect.Effect<RoomWithMembers[], RoomServiceError>;
-  // update: (
-  //   id: string,
-  //   userId: string,
-  //   data: { name?: string; description?: string },
-  // ) => Effect.Effect<Room, RoomServiceError>;
+  listByUser: (
+    userId: string,
+  ) => Effect.Effect<RoomWithMembers[], RoomServiceError>;
+  update: (
+    id: string,
+    userId: string,
+    data: { name?: string; description?: string },
+  ) => Effect.Effect<Room, RoomServiceError>;
   // delete: (id: string, userId: string) => Effect.Effect<void, RoomServiceError>;
   //
   // addMember: (
@@ -66,7 +76,7 @@ export const RoomService = Context.GenericTag<RoomService>("RoomService");
 export const RoomServiceLive = Layer.effect(
   RoomService,
   Effect.gen(function* () {
-    const db = yield* Db;
+    const sql = yield* Db;
 
     return RoomService.of({
       create: (
@@ -91,8 +101,8 @@ export const RoomServiceLive = Layer.effect(
             ),
           );
 
-          const sql = yield* sqlSafe(
-            db`WITH new_room AS (
+          const result = yield* sqlSafe(
+            sql`WITH new_room AS (
             INSERT INTO rooms (name, type, created_by, description) 
             VALUES (${input.name}, ${input.type}, ${input.created_by}, ${input.description ?? null})
             RETURNING id, name, type, description, created_by, created_at, updated_at), 
@@ -102,7 +112,7 @@ export const RoomServiceLive = Layer.effect(
             FROM new_room RETURNING room_id) 
             SELECT * from new_room`,
           );
-          if (sql.length === 0) {
+          if (result.length === 0) {
             return yield* Effect.fail(
               new RoomServiceError({
                 code: "ROOM_CREATION_FAILED",
@@ -111,7 +121,7 @@ export const RoomServiceLive = Layer.effect(
             );
           }
 
-          const room = sql[0] as RoomRow;
+          const room = result[0] as RoomRow;
           return {
             id: room.id,
             name: room.name,
@@ -122,23 +132,97 @@ export const RoomServiceLive = Layer.effect(
             updated_at: room.updated_at,
           };
         }),
-findById: (id: string) => Effect.gen(function* () {
-      const sql = yield* sqlSafe(
-        db`SELECT * FROM rooms WHERE id = ${id}`,
-      );
-      if (sql.length === 0) {
-        return yield* Effect.fail(
-          new RoomServiceError({
-            code: "ROOM_NOT_FOUND",
-            message: `Room with id ${id} not found`,
-          }),
-        );
-      }
-      const roomRow = sql[0] as Room;
-      return roomRow;
-  }),
-    })
-    )};
 
-    
+      findById: (id: string) =>
+        Effect.gen(function* () {
+          const result = yield* sqlSafe(
+            sql<RoomRow>`SELECT * FROM rooms WHERE id = ${id}`,
+          );
+          return yield* toRoom(result[0], RoomSchema);
+        }),
+
+      listByUser: (userId: string) =>
+        Effect.gen(function* () {
+          const rooms = yield* sqlSafe(
+            sql<RoomWithMembers>`WITH member_counts AS (
+            SELECT room_id, COUNT(*) AS member_count
+              FROM room_members
+              GROUP BY room_id
+            )
+            SELECT r.id, r.name, r.type, r.description, r.created_by, r.created_at, r.updated_at, rm.role as user_role,
+            mc.member_count as member_count
+            FROM rooms r
+            INNER JOIN room_members rm ON r.id = rm.room_id
+            INNER JOIN member_counts mc ON r.id = mc.room_id
+            WHERE rm.user_id = ${userId}
+            ORDER BY r.updated_at DESC`,
+          );
+
+          yield* Console.log("rooms", rooms);
+
+          return rooms.map((room) => ({
+            ...room,
+            member_count: Number(room.member_count),
+          }));
+        }),
+
+      update: (
+        id: string,
+        userId: string,
+        data: { name?: string; description?: string },
+      ) =>
+        Effect.gen(function* () {
+          yield* requireOwnerOrAdmin(sql, id, userId);
+
+          const update: string[] = [];
+          const values: any[] = [];
+
+          if (data?.name !== undefined) {
+            update.push(`name = ${data.name}`);
+            values.push(data.name);
+          }
+          if (data?.description) {
+            update.push(`description = ${data.description}`);
+            values.push(data.description);
+          }
+          if (update.length === 0) {
+            return yield* Effect.fail(
+              new RoomServiceError({
+                code: "ROOM_VALIDATION_FAILED",
+                message: "Data validation failed",
+              }),
+            );
+          }
+
+          update.push(`updated_at = NOW()`);
+          values.push(new Date());
+
+          const query = yield* sqlSafe(
+            sql`UPDATE rooms SET ${sql.unsafe(update.join(", "))} WHERE id = ${id} RETURNING *`,
+          );
+
+          if (query.length === 0) {
+            return yield* Effect.fail(
+              new RoomServiceError({
+                code: "ROOM_NOT_FOUND",
+                message: "Room not found",
+              }),
+            );
+          }
+
+          const room = yield* decodeRoom(query[0]).pipe(
+            Effect.mapError(
+              (err) =>
+                new RoomServiceError({
+                  code: "INTERNAL_ROOM_ERROR",
+                  message:
+                    "Invalid room data returned by query: " +
+                    JSON.stringify(err),
+                }),
+            ),
+          );
+          return room;
+        }),
+    });
+  }),
 );
