@@ -1,21 +1,14 @@
 import {
   Room,
   RoomError,
-  RoomMemberAdd,
   RoomMemberRow,
   RoomRow,
-  RoomRowSchema,
-  RoomSchema,
   RoomWithMembers,
-  RoomWithMembersSchema,
 } from "@hive/shared";
-import { Console, Context, Data, Effect, Layer, Schema } from "effect";
+import { Console, Context, Data, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
-import { SqlClient, SqlError } from "@effect/sql";
 import {
-  decodeRoom,
   decodeRoomCreate,
-  decodeRoomUpdate,
   requireOwnerOrAdmin,
   sqlSafe,
   toRoom,
@@ -52,25 +45,25 @@ export interface RoomService {
     role: "admin" | "member",
   ) => Effect.Effect<RoomMemberRow, RoomServiceError>;
 
-  // removeMember: (
-  //   roomId: string,
-  //   userId: string,
-  //   requesterId: string,
-  // ) => Effect.Effect<void, RoomServiceError>;
+  removeMember: (
+    roomId: string,
+    userId: string,
+    requesterId: string,
+  ) => Effect.Effect<void, RoomServiceError>;
+
+  listMembers: (
+    roomId: string,
+  ) => Effect.Effect<RoomMemberRow[], RoomServiceError>;
+
+  getMemberRole: (
+    roomId: string,
+    userId: string,
+  ) => Effect.Effect<"admin" | "owner" | "member" | null, RoomServiceError>;
   //
-  // listMembers: (
-  //   roomId: string,
-  // ) => Effect.Effect<RoomMemberRow[], RoomServiceError>;
-  //
-  // getMemberRole: (
-  //   roomId: string,
-  //   userId: string,
-  // ) => Effect.Effect<"admin" | "owner" | "member" | null, RoomServiceError>;
-  //
-  // isMember: (
-  //   roomId: string,
-  //   userId: string,
-  // ) => Effect.Effect<boolean, RoomServiceError>;
+  isMember: (
+    roomId: string,
+    userId: string,
+  ) => Effect.Effect<boolean, RoomServiceError>;
 }
 
 export const RoomService = Context.GenericTag<RoomService>("RoomService");
@@ -232,6 +225,69 @@ export const RoomServiceLive = Layer.effect(
           );
 
           return yield* toRoomMember(member);
+        }),
+      removeMember: (roomId: string, userId: string, requesterId: string) =>
+        Effect.gen(function* () {
+          yield* requireOwnerOrAdmin(sql, roomId, requesterId);
+          const targetedMember = yield* sqlSafe(
+            sql`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+          );
+
+          if (targetedMember[0]?.role === "owner") {
+            return yield* Effect.fail(
+              new RoomServiceError({
+                code: "CANNOT_REMOVE_OWNER",
+                message: "Owner cannot be removed",
+              }),
+            );
+          }
+
+          yield* sqlSafe(
+            sql`DELETE FROM room_members WHERE user_id = ${userId} AND room_id = ${roomId}`,
+          );
+        }),
+      listMembers: (roomId: string) =>
+        Effect.gen(function* () {
+          yield* validateRoomExists(sql, roomId);
+          const members = yield* sqlSafe(
+            sql<RoomMemberRow>`SELECT 
+              rm.id, 
+              rm.role, 
+              rm.room_id,
+              rm.user_id,
+              rm.joined_at 
+            FROM room_members rm
+            WHERE rm.room_id = ${roomId}
+            ORDER BY rm.joined_at DESC
+            `,
+          );
+
+          return [...members];
+        }),
+      getMemberRole: (roomId: string, userId: string) =>
+        Effect.gen(function* () {
+          yield* validateRoomExists(sql, roomId);
+          const members = yield* sqlSafe(
+            sql`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+          );
+          if (members.length === 0 && !members[0]?.role) {
+            return yield* Effect.fail(
+              new RoomServiceError({
+                code: "ROOM_MEMBER_NOT_FOUND",
+                message: "Member not found in the room",
+              }),
+            );
+          }
+
+          return members[0]?.role as "admin" | "owner" | "member";
+        }),
+      isMember: (roomId: string, userId: string) =>
+        Effect.gen(function* () {
+          yield* validateRoomExists(sql, roomId);
+          const members = yield* sqlSafe(
+            sql`SELECT 1 FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+          );
+          return members.length > 0;
         }),
     });
   }),
