@@ -58,7 +58,7 @@ export interface RoomService {
   getMemberRole: (
     roomId: string,
     userId: string,
-  ) => Effect.Effect<"admin" | "owner" | "member" | null, RoomServiceError>;
+  ) => Effect.Effect<RoomMemberRow["role"] | null, RoomServiceError>;
   //
   isMember: (
     roomId: string,
@@ -103,7 +103,7 @@ export const RoomServiceLive = Layer.effect(
             RETURNING id, name, type, description, created_by, created_at, updated_at), 
             new_member AS (
             INSERT INTO room_members (room_id, user_id, role) 
-            SELECT id, ${input.created_by}, 'owner' 
+            VALUES (id, ${input.created_by}, 'owner')
             FROM new_room RETURNING room_id) 
             SELECT * from new_room`,
           );
