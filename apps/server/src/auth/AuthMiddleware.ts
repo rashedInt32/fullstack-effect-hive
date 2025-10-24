@@ -1,12 +1,16 @@
 import { HttpServerRequest } from "@effect/platform";
-import { Console, Data, Effect } from "effect";
+import { Console, Data, Effect, Schema } from "effect";
 import { JwtService } from "../jwt/JwtService";
 import { JWTPayload } from "jose";
 
-class AuthError extends Data.TaggedError("AuthError")<{
-  code: "INVALID_TOKEN" | "MISSING_TOKEN";
-  message: string;
-}> {}
+export const AuthErrorSchema = Schema.Struct({
+  code: Schema.Literal("INVALID_TOKEN", "MISSING_TOKEN"),
+  message: Schema.String,
+});
+
+export class AuthError extends Data.TaggedError("AuthError")<
+  Schema.Schema.Type<typeof AuthErrorSchema>
+> {}
 
 export const requireAuth: Effect.Effect<
   JWTPayload,
