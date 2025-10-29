@@ -1,6 +1,6 @@
 import { HttpServerRequest } from "@effect/platform";
 import { Console, Data, Effect, Schema } from "effect";
-import { JwtService } from "../jwt/JwtService";
+import { AuthJWTPayload, JwtService } from "../jwt/JwtService";
 import { JWTPayload } from "jose";
 
 export const AuthErrorSchema = Schema.Struct({
@@ -13,7 +13,7 @@ export class AuthError extends Data.TaggedError("AuthError")<
 > {}
 
 export const requireAuth: Effect.Effect<
-  JWTPayload,
+  AuthJWTPayload,
   AuthError,
   HttpServerRequest.HttpServerRequest | JwtService
 > = Effect.gen(function* () {

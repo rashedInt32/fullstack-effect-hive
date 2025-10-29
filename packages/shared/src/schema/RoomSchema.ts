@@ -36,10 +36,12 @@ export const RoomCreateSchema = Schema.Struct({
 export const RoomUpdateSchema = Schema.Struct({
   id: Schema.String,
   userId: Schema.String,
-  name: Schema.optional(
-    Schema.String.pipe(Schema.minLength(1), Schema.maxLength(200)),
-  ),
-  description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
+  data: Schema.Struct({
+    name: Schema.optional(
+      Schema.String.pipe(Schema.minLength(1), Schema.maxLength(200)),
+    ),
+    description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
+  }),
 });
 
 export const RoomSchema = RoomRowSchema;
@@ -53,8 +55,16 @@ export const RoomMemberRowSchema = Schema.Struct({
 });
 
 export const RoomMemberAddSchema = Schema.Struct({
-  user_id: Schema.String,
+  userId: Schema.String,
+  roomId: Schema.String,
+  requesterId: Schema.String,
   role: Schema.optional(Schema.Literal("admin", "member")),
+});
+
+export const RoomMemberRemoveSchema = Schema.Struct({
+  userId: Schema.String,
+  roomId: Schema.String,
+  requesterId: Schema.String,
 });
 
 export const RoomWithMembersSchema = Schema.Struct({

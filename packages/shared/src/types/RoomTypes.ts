@@ -2,10 +2,12 @@ import { Schema } from "effect";
 import {
   RoomCreateSchema,
   RoomMemberAddSchema,
+  RoomMemberRemoveSchema,
   RoomMemberRowSchema,
   RoomRowSchema,
   RoomSchema,
   RoomServiceErrorSchema,
+  RoomUpdateSchema,
   RoomWithMembersSchema,
 } from "../schema/RoomSchema";
 
@@ -22,3 +24,9 @@ export type RoomMemberRow = Schema.Schema.Type<typeof RoomMemberRowSchema>;
 export type RoomMemberAdd = Schema.Schema.Type<typeof RoomMemberAddSchema>;
 
 export type RoomWithMembers = Schema.Schema.Type<typeof RoomWithMembersSchema>;
+
+export type RoomUpdate = Schema.Schema.Type<typeof RoomUpdateSchema>;
+
+export type RoomMemberRemove = Schema.Schema.Type<
+  typeof RoomMemberRemoveSchema
+>;

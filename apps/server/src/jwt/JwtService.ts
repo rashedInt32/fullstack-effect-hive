@@ -8,9 +8,14 @@ export class JwtError extends Data.TaggedError("JwtError")<{
   cause?: unknown;
 }> {}
 
+export interface AuthJWTPayload extends JWTPayload {
+  id: string;
+  email: string;
+}
+
 export interface JwtService {
-  sign: (payload: JWTPayload) => Effect.Effect<string, JwtError>;
-  verify: (token: string) => Effect.Effect<JWTPayload, JwtError>;
+  sign: (payload: AuthJWTPayload) => Effect.Effect<string, JwtError>;
+  verify: (token: string) => Effect.Effect<AuthJWTPayload, JwtError>;
 }
 
 export const JwtService = Context.GenericTag<JwtService>("JwtService");
@@ -47,7 +52,7 @@ export const JwtServiceLive = Layer.effect(
               message: "Jwt verify error",
               cause: cause,
             }),
-        }).pipe(Effect.map(({ payload }) => payload)),
+        }).pipe(Effect.map(({ payload }) => payload as AuthJWTPayload)),
     });
   }),
 );
