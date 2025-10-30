@@ -18,9 +18,10 @@ import {
   RoomMemberRemoveSchema,
   RoomMemberAdd,
 } from "@hive/shared";
-import { Effect, Layer, Schema } from "effect";
+import { Console, Effect, Layer, Schema } from "effect";
 import { RoomService } from "../../room/RoomService";
 import { AuthErrorSchema, requireAuth } from "../../auth/AuthMiddleware";
+import { succeed } from "effect/Config";
 
 const RoomApiErrorSchema = Schema.Union(
   RoomServiceErrorSchema,
@@ -64,11 +65,16 @@ export const RoomAPI = HttpApi.make("RoomAPI").add(
             roomId: Schema.String,
           }),
         )
-        .setPayload(RoomUpdateSchema),
+        .setPayload(RoomUpdateSchema.omit("id")),
     )
     .add(
       HttpApiEndpoint.del("delete", "/:roomId")
-        .addSuccess(Schema.Void)
+        .addSuccess(
+          Schema.Struct({
+            status: Schema.String,
+            message: Schema.String,
+          }),
+        )
         .addError(RoomApiErrorSchema)
         .setPath(
           Schema.Struct({
@@ -115,127 +121,143 @@ export const RoomAPI = HttpApi.make("RoomAPI").add(
     .prefix("/rooms"),
 );
 
+const handleCreate = ({ payload }: { payload: RoomCreate }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.create(
+      payload.name,
+      payload.type,
+      payload.created_by,
+      payload.description,
+    );
+
+    yield* Console.log(result);
+
+    return result;
+  });
+
+const handleGetById = ({ path }: { path: { id: string } }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.findById(path.id);
+    return result;
+  });
+
+const handleListByUser = ({ path }: { path: { userId: string } }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.listByUser(path.userId);
+    return result;
+  });
+
+const handleUpdate = ({
+  path,
+  payload,
+}: {
+  path: { roomId: string };
+  payload: Omit<RoomUpdate, "id">;
+}) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.update(
+      path.roomId,
+      payload.userId,
+      payload.data,
+    );
+    return result;
+  });
+
+const handleDelete = ({ path }: { path: { roomId: string } }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    const user = yield* requireAuth;
+    yield* roomService.delete(path.roomId, user.id as string);
+    return {
+      status: "success",
+      message: "Successfully deleted room",
+    };
+  });
+
+const handleAddMember = ({ payload }: { payload: RoomMemberAdd }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const { roomId, userId, requesterId, role } = payload;
+    const result = yield* roomService.addMember(
+      roomId,
+      userId,
+      requesterId,
+      role as "admin" | "member",
+    );
+    return result;
+  });
+
+const handleRemoveMember = ({ payload }: { payload: RoomMemberRemove }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    yield* roomService.removeMember(
+      payload.roomId,
+      payload.userId,
+      payload.requesterId,
+    );
+    return {
+      success: true,
+      message: "Member removed successfully",
+    };
+  });
+
+const handleListMembers = ({ path }: { path: { roomId: string } }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.listMembers(path.roomId);
+    return result;
+  });
+
+const handleGetMemberRole = ({
+  path,
+}: {
+  path: { roomId: string; userId: string };
+}) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.getMemberRole(path.roomId, path.userId);
+    return result as "admin" | "owner" | "member";
+  });
+
+const handleIsMember = ({
+  path,
+}: {
+  path: { roomId: string; userId: string };
+}) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    yield* requireAuth;
+    const result = yield* roomService.isMember(path.roomId, path.userId);
+    return result;
+  });
+
 export const RoomsGroupLive = HttpApiBuilder.group(
   RoomAPI,
   "rooms",
   (handlers) =>
     handlers
-      .handle("create", ({ payload }: { payload: RoomCreate }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          const result = yield* roomService.create(
-            payload.name,
-            payload.type,
-            payload.created_by,
-            payload.description,
-          );
-
-          return result;
-        }),
-      )
-      .handle("getById", ({ path }: { path: { id: string } }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          const result = yield* roomService.findById(path.id);
-          return result;
-        }),
-      )
-      .handle("listByUser", ({ path }: { path: { userId: string } }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          const result = yield* roomService.listByUser(path.userId);
-          return result;
-        }),
-      )
-      .handle(
-        "update",
-        ({
-          path,
-          payload,
-        }: {
-          path: { roomId: string };
-          payload: RoomUpdate;
-        }) =>
-          Effect.gen(function* () {
-            const roomService = yield* RoomService;
-            yield* requireAuth;
-            const result = yield* roomService.update(
-              path.roomId,
-              payload.userId,
-              payload.data,
-            );
-            return result;
-          }),
-      )
-      .handle("delete", ({ path }: { path: { roomId: string } }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          const user = yield* requireAuth;
-          return yield* roomService.delete(path.roomId, user.id as string);
-        }),
-      )
-      .handle("addMember", ({ payload }: { payload: RoomMemberAdd }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          const { roomId, userId, requesterId, role } = payload;
-          const result = yield* roomService.addMember(
-            roomId,
-            userId,
-            requesterId,
-            role as "admin" | "member",
-          );
-          return result;
-        }),
-      )
-      .handle("removeMember", ({ payload }: { payload: RoomMemberRemove }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          yield* roomService.removeMember(
-            payload.roomId,
-            payload.userId,
-            payload.requesterId,
-          );
-          return {
-            success: true,
-            message: "Member removed successfully",
-          };
-        }),
-      )
-      .handle("listMembers", ({ path }: { path: { roomId: string } }) =>
-        Effect.gen(function* () {
-          const roomService = yield* RoomService;
-          yield* requireAuth;
-          const result = yield* roomService.listMembers(path.roomId);
-          return result;
-        }),
-      )
-      .handle(
-        "getMemberRole",
-        ({ path }: { path: { roomId: string; userId: string } }) =>
-          Effect.gen(function* () {
-            const roomService = yield* RoomService;
-            yield* requireAuth;
-            const result = yield* roomService.getMemberRole(
-              path.roomId,
-              path.userId,
-            );
-            return result as "admin" | "owner" | "member";
-          }),
-      )
-      .handle(
-        "isMember",
-        ({ path }: { path: { userId: string; roomId: string } }) =>
-          Effect.gen(function* () {
-            const roomService = yield* RoomService;
-            yield* requireAuth;
-            return yield* roomService.isMember(path.roomId, path.userId);
-          }),
-      ),
+      .handle("create", handleCreate)
+      .handle("getById", handleGetById)
+      .handle("listByUser", handleListByUser)
+      .handle("update", handleUpdate)
+      .handle("delete", handleDelete)
+      .handle("addMember", handleAddMember)
+      .handle("removeMember", handleRemoveMember)
+      .handle("listMembers", handleListMembers)
+      .handle("getMemberRole", handleGetMemberRole)
+      .handle("isMember", handleIsMember),
 );
 
 export const RoomsApiLive = HttpApiBuilder.api(RoomAPI).pipe(

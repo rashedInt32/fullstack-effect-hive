@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Console, Effect, Schema } from "effect";
 import {
   RoomCreateSchema,
   RoomError,
@@ -14,14 +14,34 @@ export const decodeRoomUpdate = Schema.decodeUnknown(RoomUpdateSchema);
 export const decodeRoom = Schema.decodeUnknown(RoomSchema);
 export const decodeRoomMember = Schema.decodeUnknown(RoomMemberRowSchema);
 
-export const mapSqlError = (
-  error: SqlError.SqlError,
-  defaultCode?: RoomError["code"],
-) =>
-  new RoomServiceError({
-    code: defaultCode || "INTERNAL_ROOM_ERROR",
-    message: error.message || "Database Operation failed",
+export const mapSqlError = (err: any): RoomServiceError => {
+  const inner = err?.cause ?? err;
+  const constraint = inner?.constraint_name || "";
+  const code = inner?.code;
+
+  if (code === "23505") {
+    if (constraint.includes("users_username_key")) {
+      return new RoomServiceError({
+        code: "ROOM_CREATION_FAILED",
+        message: "Ussername already exist",
+      });
+    }
+    if (constraint.includes("users_email_key")) {
+      return new RoomServiceError({
+        code: "ROOM_CREATION_FAILED",
+        message: "Email already exist",
+      });
+    }
+    return new RoomServiceError({
+      code: "ROOM_CREATION_FAILED",
+      message: "Duplicate key",
+    });
+  }
+  return new RoomServiceError({
+    code: "ROOM_CREATION_FAILED",
+    message: inner?.detail || err?.message,
   });
+};
 
 export const sqlSafe = <A, R>(eff: Effect.Effect<A, SqlError.SqlError, R>) =>
   eff.pipe(Effect.mapError(mapSqlError));
@@ -31,16 +51,16 @@ export const validateRoomExists = (db: SqlClient.SqlClient, roomId: string) =>
     const room = yield* sqlSafe(
       db`SELECT id FROM rooms WHERE id = ${roomId} LIMIT 1`,
     );
-    return yield* decodeRoomMember(room[0]).pipe(
-      Effect.mapError(
-        (err) =>
-          new RoomServiceError({
-            code: "INTERNAL_ROOM_ERROR",
-            message:
-              "Invalid user data returned by query: " + JSON.stringify(err),
-          }),
-      ),
-    );
+    if (room.length === 0) {
+      return yield* Effect.fail(
+        new RoomServiceError({
+          code: "ROOM_NOT_FOUND",
+          message: "Room not found",
+        }),
+      );
+    }
+
+    return room[0];
   });
 
 export const requireOwnerOrAdmin = (
@@ -67,18 +87,18 @@ export const requireOwnerOrAdmin = (
     return members[0]?.role;
   });
 
-export const toRoom = (sqlQueryResult: unknown) => {
-  return decodeRoom(sqlQueryResult).pipe(
-    Effect.mapError(
-      (err) =>
-        new RoomServiceError({
-          code: "INTERNAL_ROOM_ERROR",
-          message:
-            "Invalid user data returned by query: " + JSON.stringify(err),
-        }),
-    ),
+export const toRoom = (sqlQueryResult: unknown) =>
+  decodeRoom(sqlQueryResult).pipe(
+    Effect.mapError((err) => {
+      Console.log("Schema decode error:", JSON.stringify(err)).pipe(
+        Effect.runSync,
+      );
+      return new RoomServiceError({
+        code: "INTERNAL_ROOM_ERROR",
+        message: "Invalid user data returned by query: " + JSON.stringify(err),
+      });
+    }),
   );
-};
 
 export const toRoomMember = (sqlQueryResult: unknown) => {
   return decodeRoomMember(sqlQueryResult).pipe(

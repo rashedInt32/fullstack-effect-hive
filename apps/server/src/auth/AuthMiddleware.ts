@@ -19,7 +19,6 @@ export const requireAuth: Effect.Effect<
 > = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest;
   const authHeader = request.headers.authorization;
-  yield* Console.log(`Auth Header: ${authHeader}`);
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return yield* new AuthError({
       code: "MISSING_TOKEN",

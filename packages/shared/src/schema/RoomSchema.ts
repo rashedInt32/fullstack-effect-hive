@@ -13,6 +13,7 @@ export const RoomServiceErrorSchema = Schema.Struct({
     "CANNOT_REMOVE_OWNER",
     "INTERNAL_ROOM_ERROR",
     "ROOM_QUERY_FAILED",
+    "ROOM_UPDATE_FAILED",
   ),
 });
 
@@ -22,8 +23,8 @@ export const RoomRowSchema = Schema.Struct({
   type: Schema.Literal("channel", "dm"),
   description: Schema.Union(Schema.String, Schema.Null),
   created_by: Schema.String,
-  created_at: Schema.DateFromString,
-  updated_at: Schema.DateFromString,
+  created_at: Schema.instanceOf(Date),
+  updated_at: Schema.instanceOf(Date),
 });
 
 export const RoomCreateSchema = Schema.Struct({

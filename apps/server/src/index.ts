@@ -13,11 +13,15 @@ import { UserApiLive } from "./api/routes/userRoute";
 import { JwtServiceLive } from "./jwt/JwtService";
 import { AppConfigLive } from "./config/Config";
 import { AuthServiceLive } from "./auth/AuthService";
+import { RoomsApiLive } from "./api/routes/roomRoute";
+import { RoomServiceLive } from "./room/RoomService";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(HttpApiSwagger.layer()),
   Layer.provide(UserApiLive),
+  Layer.provide(RoomsApiLive),
   Layer.provide(UserServiceLive),
+  Layer.provide(RoomServiceLive),
   Layer.provide(AuthServiceLive),
   Layer.provide(JwtServiceLive),
   Layer.provide(DbLive),

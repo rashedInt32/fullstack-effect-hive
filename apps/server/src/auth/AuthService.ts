@@ -61,7 +61,7 @@ export const AuthServiceLive = Layer.effect(
 
           const user = yield* toUser(rows[0]);
           const token = yield* jwtService.sign({
-            email: user.email,
+            email: user.email as string,
             id: user.id,
           });
 

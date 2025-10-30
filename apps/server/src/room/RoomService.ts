@@ -88,10 +88,10 @@ export const RoomServiceLive = Layer.effect(
             description,
           }).pipe(
             Effect.mapError(
-              (err) =>
+              () =>
                 new RoomServiceError({
                   code: "ROOM_VALIDATION_FAILED",
-                  message: "Data validation failed: " + JSON.stringify(err),
+                  message: "Data validation failed:",
                 }),
             ),
           );
@@ -99,24 +99,21 @@ export const RoomServiceLive = Layer.effect(
           const result = yield* sqlSafe(
             sql`WITH new_room AS (
             INSERT INTO rooms (name, type, created_by, description) 
-            VALUES (${input.name}, ${input.type}, ${input.created_by}, ${input.description ?? null})
-            RETURNING id, name, type, description, created_by, created_at, updated_at), 
-            new_member AS (
-            INSERT INTO room_members (room_id, user_id, role) 
-            VALUES (id, ${input.created_by}, 'owner')
-            FROM new_room RETURNING room_id) 
-            SELECT * from new_room`,
-          );
-          if (result.length === 0) {
-            return yield* Effect.fail(
-              new RoomServiceError({
-                code: "ROOM_CREATION_FAILED",
-                message: "Failed to create room",
-              }),
-            );
-          }
+            VALUES (${input.name}, ${input.created_by}, ${input.description ?? null})
+            RETURNING id, name, type, description, created_by, created_at, updated_at),
 
-          return yield* toRoom(result[0]);
+            new_member AS (
+            INSERT INTO room_members (room_id, user_id, role)
+            SELECT id, ${input.created_by}, 'owner'
+            FROM new_room
+            RETURNING room_id)
+
+            SELECT * FROM new_room`,
+          );
+
+          const room = yield* toRoom(result[0]);
+
+          return room;
         }),
 
       findById: (id: string) =>
@@ -144,8 +141,6 @@ export const RoomServiceLive = Layer.effect(
             ORDER BY r.updated_at DESC`,
           );
 
-          yield* Console.log("rooms", rooms);
-
           return rooms.map((room) => ({
             ...room,
             member_count: Number(room.member_count),
@@ -160,32 +155,38 @@ export const RoomServiceLive = Layer.effect(
         Effect.gen(function* () {
           yield* requireOwnerOrAdmin(sql, id, userId);
 
-          const update: string[] = [];
-          const values: any[] = [];
+          yield* Console.log(id, userId, data);
 
-          if (data?.name !== undefined) {
-            update.push(`name = ${data.name}`);
-            values.push(data.name);
-          }
-          if (data?.description) {
-            update.push(`description = ${data.description}`);
-            values.push(data.description);
-          }
-          if (update.length === 0) {
+          if (!data.name && !data.description) {
             return yield* Effect.fail(
               new RoomServiceError({
-                code: "ROOM_VALIDATION_FAILED",
-                message: "Data validation failed",
+                code: "ROOM_UPDATE_FAILED",
+                message: "One of the field is required to update the room",
               }),
             );
           }
 
-          update.push(`updated_at = NOW()`);
-          values.push(new Date());
-
-          const query = yield* sqlSafe(
-            sql`UPDATE rooms SET ${sql.unsafe(update.join(", "))} WHERE id = ${id} RETURNING *`,
-          );
+          let query;
+          if (data.name && data.description) {
+            query = yield* sqlSafe(
+              sql`UPDATE rooms SET name = ${data.name}, description = ${data.description} WHERE id = ${id} RETURNING *`,
+            );
+          } else if (data.name) {
+            query = yield* sqlSafe(
+              sql`UPDATE rooms SET name = ${data.name} WHERE id = ${id} RETURNING * `,
+            );
+          } else if (data.description) {
+            query = yield* sqlSafe(
+              sql`UPDATE rooms SET description = ${data.description} WHERE id = ${id} RETURNING*`,
+            );
+          } else {
+            return yield* Effect.fail(
+              new RoomServiceError({
+                code: "ROOM_UPDATE_FAILED",
+                message: "Database query failed",
+              }),
+            );
+          }
 
           const room = yield* toRoom(query[0]);
           return room;
@@ -193,6 +194,7 @@ export const RoomServiceLive = Layer.effect(
       delete: (id: string, userId: string) =>
         Effect.gen(function* () {
           yield* requireOwnerOrAdmin(sql, id, userId);
+          yield* validateRoomExists(sql, id);
           return yield* sqlSafe(sql`DELETE FROM rooms WHERE id = ${id}`);
         }),
       addMember: (
@@ -224,7 +226,7 @@ export const RoomServiceLive = Layer.effect(
             sql`INSERT INTO room_members (user_id, room_id, role) VALUES (${userId}, ${roomId}, ${role}) RETURNING id, user_id, room_id, role, joined_at`,
           );
 
-          return yield* toRoomMember(member);
+          return yield* toRoomMember(member[0]);
         }),
       removeMember: (roomId: string, userId: string, requesterId: string) =>
         Effect.gen(function* () {
