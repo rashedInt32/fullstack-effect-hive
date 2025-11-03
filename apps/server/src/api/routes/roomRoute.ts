@@ -21,7 +21,6 @@ import {
 import { Console, Effect, Layer, Schema } from "effect";
 import { RoomService } from "../../room/RoomService";
 import { AuthErrorSchema, requireAuth } from "../../auth/AuthMiddleware";
-import { succeed } from "effect/Config";
 
 const RoomApiErrorSchema = Schema.Union(
   RoomServiceErrorSchema,
@@ -70,10 +69,7 @@ export const RoomAPI = HttpApi.make("RoomAPI").add(
     .add(
       HttpApiEndpoint.del("delete", "/:roomId")
         .addSuccess(
-          Schema.Struct({
-            status: Schema.String,
-            message: Schema.String,
-          }),
+          Schema.Struct({ message: Schema.String, success: Schema.Boolean }),
         )
         .addError(RoomApiErrorSchema)
         .setPath(
@@ -132,10 +128,15 @@ const handleCreate = ({ payload }: { payload: RoomCreate }) =>
       payload.description,
     );
 
-    yield* Console.log(result);
+    yield* Console.log("result", result);
 
     return result;
-  });
+  }).pipe(
+    Effect.mapError((err) => ({
+      code: err.code,
+      message: err.message,
+    })),
+  );
 
 const handleGetById = ({ path }: { path: { id: string } }) =>
   Effect.gen(function* () {
@@ -177,7 +178,7 @@ const handleDelete = ({ path }: { path: { roomId: string } }) =>
     const user = yield* requireAuth;
     yield* roomService.delete(path.roomId, user.id as string);
     return {
-      status: "success",
+      success: true,
       message: "Successfully deleted room",
     };
   });

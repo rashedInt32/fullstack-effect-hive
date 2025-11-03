@@ -19,24 +19,6 @@ export const mapSqlError = (err: any): RoomServiceError => {
   const constraint = inner?.constraint_name || "";
   const code = inner?.code;
 
-  if (code === "23505") {
-    if (constraint.includes("users_username_key")) {
-      return new RoomServiceError({
-        code: "ROOM_CREATION_FAILED",
-        message: "Ussername already exist",
-      });
-    }
-    if (constraint.includes("users_email_key")) {
-      return new RoomServiceError({
-        code: "ROOM_CREATION_FAILED",
-        message: "Email already exist",
-      });
-    }
-    return new RoomServiceError({
-      code: "ROOM_CREATION_FAILED",
-      message: "Duplicate key",
-    });
-  }
   return new RoomServiceError({
     code: "ROOM_CREATION_FAILED",
     message: inner?.detail || err?.message,

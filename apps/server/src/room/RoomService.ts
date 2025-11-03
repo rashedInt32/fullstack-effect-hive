@@ -71,7 +71,7 @@ export const RoomService = Context.GenericTag<RoomService>("RoomService");
 export const RoomServiceLive = Layer.effect(
   RoomService,
   Effect.gen(function* () {
-    const sql = yield* Db;
+    const db = yield* Db;
 
     return RoomService.of({
       create: (
@@ -97,9 +97,9 @@ export const RoomServiceLive = Layer.effect(
           );
 
           const result = yield* sqlSafe(
-            sql`WITH new_room AS (
+            db`WITH new_room AS (
             INSERT INTO rooms (name, type, created_by, description) 
-            VALUES (${input.name}, ${input.created_by}, ${input.description ?? null})
+            VALUES (${input.name},${input.type}, ${input.created_by}, ${input.description ?? null})
             RETURNING id, name, type, description, created_by, created_at, updated_at),
 
             new_member AS (
@@ -119,7 +119,7 @@ export const RoomServiceLive = Layer.effect(
       findById: (id: string) =>
         Effect.gen(function* () {
           const result = yield* sqlSafe(
-            sql<RoomRow>`SELECT * FROM rooms WHERE id = ${id}`,
+            db<RoomRow>`SELECT * FROM rooms WHERE id = ${id}`,
           );
           return yield* toRoom(result[0]);
         }),
@@ -127,7 +127,7 @@ export const RoomServiceLive = Layer.effect(
       listByUser: (userId: string) =>
         Effect.gen(function* () {
           const rooms = yield* sqlSafe(
-            sql<RoomWithMembers>`WITH member_counts AS (
+            db<RoomWithMembers>`WITH member_counts AS (
             SELECT room_id, COUNT(*) AS member_count
               FROM room_members
               GROUP BY room_id
@@ -153,7 +153,7 @@ export const RoomServiceLive = Layer.effect(
         data: { name?: string; description?: string },
       ) =>
         Effect.gen(function* () {
-          yield* requireOwnerOrAdmin(sql, id, userId);
+          yield* requireOwnerOrAdmin(db, id, userId);
 
           yield* Console.log(id, userId, data);
 
@@ -169,15 +169,15 @@ export const RoomServiceLive = Layer.effect(
           let query;
           if (data.name && data.description) {
             query = yield* sqlSafe(
-              sql`UPDATE rooms SET name = ${data.name}, description = ${data.description} WHERE id = ${id} RETURNING *`,
+              db`UPDATE rooms SET name = ${data.name}, description = ${data.description} WHERE id = ${id} RETURNING *`,
             );
           } else if (data.name) {
             query = yield* sqlSafe(
-              sql`UPDATE rooms SET name = ${data.name} WHERE id = ${id} RETURNING * `,
+              db`UPDATE rooms SET name = ${data.name} WHERE id = ${id} RETURNING * `,
             );
           } else if (data.description) {
             query = yield* sqlSafe(
-              sql`UPDATE rooms SET description = ${data.description} WHERE id = ${id} RETURNING*`,
+              db`UPDATE rooms SET description = ${data.description} WHERE id = ${id} RETURNING*`,
             );
           } else {
             return yield* Effect.fail(
@@ -193,9 +193,9 @@ export const RoomServiceLive = Layer.effect(
         }),
       delete: (id: string, userId: string) =>
         Effect.gen(function* () {
-          yield* requireOwnerOrAdmin(sql, id, userId);
-          yield* validateRoomExists(sql, id);
-          return yield* sqlSafe(sql`DELETE FROM rooms WHERE id = ${id}`);
+          yield* requireOwnerOrAdmin(db, id, userId);
+          yield* validateRoomExists(db, id);
+          return yield* sqlSafe(db`DELETE FROM rooms WHERE id = ${id}`);
         }),
       addMember: (
         roomId: string,
@@ -204,10 +204,10 @@ export const RoomServiceLive = Layer.effect(
         role: "admin" | "member",
       ) =>
         Effect.gen(function* () {
-          yield* requireOwnerOrAdmin(sql, roomId, requesterId);
-          yield* validateRoomExists(sql, roomId);
+          yield* requireOwnerOrAdmin(db, roomId, requesterId);
+          yield* validateRoomExists(db, roomId);
 
-          const existingMember = yield* sqlSafe(sql`SELECT
+          const existingMember = yield* sqlSafe(db`SELECT
             id, role, room_id 
           FROM room_members
           WHERE user_id = ${userId}
@@ -223,16 +223,16 @@ export const RoomServiceLive = Layer.effect(
           }
 
           const member = yield* sqlSafe(
-            sql`INSERT INTO room_members (user_id, room_id, role) VALUES (${userId}, ${roomId}, ${role}) RETURNING id, user_id, room_id, role, joined_at`,
+            db`INSERT INTO room_members (user_id, room_id, role) VALUES (${userId}, ${roomId}, ${role}) RETURNING id, user_id, room_id, role, joined_at`,
           );
 
           return yield* toRoomMember(member[0]);
         }),
       removeMember: (roomId: string, userId: string, requesterId: string) =>
         Effect.gen(function* () {
-          yield* requireOwnerOrAdmin(sql, roomId, requesterId);
+          yield* requireOwnerOrAdmin(db, roomId, requesterId);
           const targetedMember = yield* sqlSafe(
-            sql`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+            db`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
           );
 
           if (targetedMember[0]?.role === "owner") {
@@ -245,14 +245,15 @@ export const RoomServiceLive = Layer.effect(
           }
 
           yield* sqlSafe(
-            sql`DELETE FROM room_members WHERE user_id = ${userId} AND room_id = ${roomId}`,
+            db`DELETE FROM room_members WHERE user_id = ${userId} AND room_id = ${roomId}`,
           );
         }),
+
       listMembers: (roomId: string) =>
         Effect.gen(function* () {
-          yield* validateRoomExists(sql, roomId);
+          yield* validateRoomExists(db, roomId);
           const members = yield* sqlSafe(
-            sql<RoomMemberRow>`SELECT 
+            db<RoomMemberRow>`SELECT 
               rm.id, 
               rm.role, 
               rm.room_id,
@@ -268,9 +269,9 @@ export const RoomServiceLive = Layer.effect(
         }),
       getMemberRole: (roomId: string, userId: string) =>
         Effect.gen(function* () {
-          yield* validateRoomExists(sql, roomId);
+          yield* validateRoomExists(db, roomId);
           const members = yield* sqlSafe(
-            sql`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+            db`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
           );
           if (members.length === 0 && !members[0]?.role) {
             return yield* Effect.fail(
@@ -285,9 +286,9 @@ export const RoomServiceLive = Layer.effect(
         }),
       isMember: (roomId: string, userId: string) =>
         Effect.gen(function* () {
-          yield* validateRoomExists(sql, roomId);
+          yield* validateRoomExists(db, roomId);
           const members = yield* sqlSafe(
-            sql`SELECT 1 FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+            db`SELECT 1 FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
           );
           return members.length > 0;
         }),

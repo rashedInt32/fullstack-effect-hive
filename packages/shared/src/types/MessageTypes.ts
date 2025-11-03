@@ -9,7 +9,7 @@ import {
   MessageWithUserSchema,
 } from "../schema/MessageSchema";
 
-export type MessageServiceError = Schema.Schema.Type<
+export type MessageServiceErrorType = Schema.Schema.Type<
   typeof MessageServiceErrorSchema
 >;
 
