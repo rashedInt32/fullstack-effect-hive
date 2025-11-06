@@ -20,8 +20,8 @@ const MessageApiErrorSchema = Schema.Union(
   AuthErrorSchema,
 );
 
-export const MessageApi = HttpApi.make("MessageApi").add(
-  HttpApiGroup.make("message")
+export const MessageApi = HttpApi.make("MessageAPI").add(
+  HttpApiGroup.make("MessageAPI.messages")
     .add(
       HttpApiEndpoint.post("create", "/create")
         .addSuccess(MessageSchema)
@@ -63,8 +63,8 @@ const handleCreate = ({ payload }: { payload: MessageCreate }) =>
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
     const result = yield* messageService.create(
-      payload.room_id,
       user.id,
+      payload.room_id,
       payload.content,
     );
     return result;
@@ -105,7 +105,7 @@ const handleDelete = ({ path }: { path: { messageId: string } }) =>
 
 export const MessageGroupLive = HttpApiBuilder.group(
   MessageApi,
-  "message",
+  "MessageAPI.messages",
   (handlers) =>
     handlers
       .handle("create", handleCreate)

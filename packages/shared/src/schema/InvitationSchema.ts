@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { DateTimeSchema } from "./common";
 
 export const InvitationServiceErrorSchema = Schema.Struct({
   message: Schema.String,
@@ -24,9 +25,9 @@ export const InvitationRowSchema = Schema.Struct({
   inviter_id: Schema.String,
   invitee_id: Schema.String,
   status: Schema.Literal("pending", "accepted", "rejected", "expired"),
-  created_at: Schema.DateFromString,
-  responded_at: Schema.Union(Schema.DateFromString, Schema.Null),
-  expires_at: Schema.DateFromString,
+  created_at: DateTimeSchema,
+  responded_at: Schema.Union(DateTimeSchema, Schema.Null),
+  expires_at: DateTimeSchema,
 });
 
 export const InvitationCreateSchema = Schema.Struct({
@@ -39,8 +40,8 @@ export const InvitationSchema = InvitationRowSchema;
 export const InvitationWithDetailsSchema = Schema.Struct({
   id: Schema.String,
   status: Schema.Literal("pending", "accepted", "rejected", "expired"),
-  created_at: Schema.DateFromString,
-  expires_at: Schema.DateFromString,
+  created_at: DateTimeSchema,
+  expires_at: DateTimeSchema,
   // Room info
   room_id: Schema.String,
   room_name: Schema.String,

@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { DateTimeSchema } from "./common";
 
 export const MessageServiceErrorSchema = Schema.Struct({
   message: Schema.String,
@@ -20,9 +21,9 @@ export const MessageRowSchema = Schema.Struct({
   room_id: Schema.String,
   user_id: Schema.String,
   content: Schema.String,
-  created_at: Schema.DateFromString,
-  updated_at: Schema.DateFromString,
-  deleted_at: Schema.Union(Schema.DateFromString, Schema.Null),
+  created_at: DateTimeSchema,
+  updated_at: DateTimeSchema,
+  deleted_at: Schema.Union(DateTimeSchema, Schema.Null),
 });
 
 export const MessageCreateSchema = Schema.Struct({

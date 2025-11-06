@@ -1,6 +1,5 @@
 import {
   Message,
-  MessageCreate,
   MessageServiceErrorType,
   MessageWithUser,
 } from "@hive/shared";
@@ -58,9 +57,9 @@ export const MessageServiceLive = Layer.effect(
     return MessageService.of({
       create: (userId: string, roomId: string, content: string) =>
         Effect.gen(function* () {
-          const input = yield* decodeCreate({ roomId, content }).pipe(
+          const input = yield* decodeCreate({ room_id: roomId, content }).pipe(
             Effect.mapError(
-              (err) =>
+              () =>
                 new MessageServiceError({
                   code: "MESSAGE_CREATION_FAILED",
                   message: "Input validation failed",
@@ -80,15 +79,15 @@ export const MessageServiceLive = Layer.effect(
       listByRoom: (
         userId: string,
         roomId: string,
-        options?: Record<string, number | Date>,
+        options?: { limit?: number; before?: Date },
       ) =>
         Effect.gen(function* () {
           yield* requireRoomExists(sql, roomId);
           yield* requireRoomMember(sql, roomId, userId);
-          const limit = Math.min(Math.max(options?.limit ? 50 : 1), 200);
+          const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
           const before = options?.before;
           const rows = before
-            ? yield* sqlSafe(sql<MessageWithUser>`
+            ? yield* sqlSafe(sql`
                 SELECT
                   m.id,
                   m.room_id,
@@ -106,7 +105,7 @@ export const MessageServiceLive = Layer.effect(
                   AND m.created_at < ${before}
                 ORDER BY m.created_at DESC
                 LIMIT ${limit}`)
-            : yield* sqlSafe(sql<MessageWithUser>`
+            : yield* sqlSafe(sql`
                 SELECT
                   m.id,
                   m.room_id,
@@ -124,17 +123,19 @@ export const MessageServiceLive = Layer.effect(
                 ORDER BY m.created_at DESC
                 LIMIT ${limit}`);
 
-          const result = rows.map((r) => toMessageWithUser(r));
-          return result;
+          const decoded = yield* Effect.all(
+            rows.map((row) => toMessageWithUser(row)),
+          );
+          return decoded;
         }),
       update: (messageId: string, userId: string, content: string) =>
         Effect.gen(function* () {
           yield* requiredAuthorOrPriviledged(sql, messageId, userId);
 
           const row = yield* sqlSafe(sql`UPDATE messages 
-          SET content = ${content} updated_at = NOW()
-          RETURNING id, room_id, user_id, content, created_at, updated_at
-          `);
+          SET content = ${content}, updated_at = NOW()
+          WHERE id = ${messageId}
+          RETURNING id, room_id, user_id, content, created_at, updated_at`);
 
           return yield* toMessage(row[0]);
         }),

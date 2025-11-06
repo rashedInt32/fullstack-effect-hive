@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { DateTimeSchema } from "./common";
 
 export const UserCreateSchema = Schema.Struct({
   username: Schema.String.pipe(
@@ -20,7 +21,7 @@ export const UserRowSchema = Schema.Struct({
   username: Schema.String,
   email: Schema.Union(Schema.String, Schema.Null),
   password_hash: Schema.String,
-  created_at: Schema.optional(Schema.DateFromString),
+  created_at: Schema.optional(DateTimeSchema),
 });
 
 export const UserServiceErrorSchema = Schema.Struct({

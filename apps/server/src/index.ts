@@ -20,8 +20,8 @@ import { MessageServiceLive } from "./message/MessageService";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(HttpApiSwagger.layer()),
-  Layer.provide(UserApiLive),
   Layer.provide(RoomsApiLive),
+  Layer.provide(UserApiLive),
   Layer.provide(MessageApiLive),
 
   Layer.provide(UserServiceLive),

@@ -93,7 +93,9 @@ export const requiredAuthorOrPriviledged = (
     m.room_id,
     rm.role
     FROM messages m
-    LEFT JOIN room_members rm rm.room_id = m.room_id AND rm.user_id = ${userId} WHERE m.id = ${messageId} LIMIT 1`);
+    LEFT JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = ${userId}
+    WHERE m.id = ${messageId}
+    LIMIT 1`);
 
     if (!rows || rows.length === 0) {
       return yield* Effect.fail(
@@ -104,7 +106,7 @@ export const requiredAuthorOrPriviledged = (
       );
     }
 
-    const row = rows[0];
+    const row = rows[0] as { author_id: string; role?: string };
     const isAuthor = row?.author_id === userId;
     const isPriviledged = ["owner", "admin"].includes(row?.role as string);
     if (!isAuthor && !isPriviledged) {
