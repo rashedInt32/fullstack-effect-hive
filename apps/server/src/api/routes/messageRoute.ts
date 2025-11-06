@@ -21,7 +21,7 @@ const MessageApiErrorSchema = Schema.Union(
 );
 
 export const MessageApi = HttpApi.make("MessageAPI").add(
-  HttpApiGroup.make("MessageAPI.messages")
+  HttpApiGroup.make("messages")
     .add(
       HttpApiEndpoint.post("create", "/create")
         .addSuccess(MessageSchema)
@@ -105,7 +105,7 @@ const handleDelete = ({ path }: { path: { messageId: string } }) =>
 
 export const MessageGroupLive = HttpApiBuilder.group(
   MessageApi,
-  "MessageAPI.messages",
+  "messages",
   (handlers) =>
     handlers
       .handle("create", handleCreate)

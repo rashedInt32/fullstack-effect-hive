@@ -18,11 +18,13 @@ import { RoomServiceLive } from "./room/RoomService";
 import { MessageApiLive } from "./api/routes/messageRoute";
 import { MessageServiceLive } from "./message/MessageService";
 
+const ApisLive = Layer.mergeAll(UserApiLive, MessageApiLive, RoomsApiLive);
+
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(HttpApiSwagger.layer()),
   Layer.provide(RoomsApiLive),
-  Layer.provide(UserApiLive),
   Layer.provide(MessageApiLive),
+  Layer.provide(UserApiLive),
 
   Layer.provide(UserServiceLive),
   Layer.provide(MessageServiceLive),

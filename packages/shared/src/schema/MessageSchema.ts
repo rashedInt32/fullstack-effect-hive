@@ -47,5 +47,5 @@ export const MessageWithUserSchema = Schema.Struct({
 export const MessageListQuerySchema = Schema.Struct({
   room_id: Schema.String,
   limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
-  before: Schema.optional(Schema.DateFromString),
+  before: Schema.optional(DateTimeSchema),
 });
