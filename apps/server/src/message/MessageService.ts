@@ -25,7 +25,7 @@ export interface MessageServiceInterface {
     userId: string,
     roomId: string,
     content: string,
-  ) => Effect.Effect<MessageCreate, MessageServiceError>;
+  ) => Effect.Effect<Message, MessageServiceError>;
 
   listByRoom: (
     userId: string,
@@ -124,7 +124,8 @@ export const MessageServiceLive = Layer.effect(
                 ORDER BY m.created_at DESC
                 LIMIT ${limit}`);
 
-          return rows.map((r) => yield* toMessageWithUser(r));
+          const result = rows.map((r) => toMessageWithUser(r));
+          return result;
         }),
       update: (messageId: string, userId: string, content: string) =>
         Effect.gen(function* () {
@@ -137,6 +138,7 @@ export const MessageServiceLive = Layer.effect(
 
           return yield* toMessage(row[0]);
         }),
+
       delete: (messageId: string, userId: string) =>
         Effect.gen(function* () {
           yield* requiredAuthorOrPriviledged(sql, messageId, userId);

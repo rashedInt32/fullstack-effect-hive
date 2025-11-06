@@ -15,15 +15,22 @@ import { AppConfigLive } from "./config/Config";
 import { AuthServiceLive } from "./auth/AuthService";
 import { RoomsApiLive } from "./api/routes/roomRoute";
 import { RoomServiceLive } from "./room/RoomService";
+import { MessageApiLive } from "./api/routes/messageRoute";
+import { MessageServiceLive } from "./message/MessageService";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(HttpApiSwagger.layer()),
   Layer.provide(UserApiLive),
   Layer.provide(RoomsApiLive),
+  Layer.provide(MessageApiLive),
+
   Layer.provide(UserServiceLive),
+  Layer.provide(MessageServiceLive),
   Layer.provide(RoomServiceLive),
+
   Layer.provide(AuthServiceLive),
   Layer.provide(JwtServiceLive),
+
   Layer.provide(DbLive),
   Layer.provide(AppConfigLive),
   Layer.tap(() => Console.log("Server listenning at port ")),
