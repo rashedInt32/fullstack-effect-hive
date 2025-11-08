@@ -22,32 +22,28 @@ const UserSchemaWithToken = Schema.Struct({
   token: Schema.optional(Schema.String),
 });
 
-export const UserApi = HttpApi.make("UserApi")
+export const AuthApiGropup = HttpApiGroup.make("auth")
   .add(
-    HttpApiGroup.make("auth")
-      .add(
-        HttpApiEndpoint.post("login", "/login")
-          .setPayload(UserLoginSchema)
-          .addSuccess(UserSchemaWithToken)
-          .addError(UserServiceErrorSchema),
-      )
-      .add(
-        HttpApiEndpoint.post("signup", "/signup")
-          .setPayload(UserCreateSchema)
-          .addSuccess(UserSchemaWithToken)
-          .addError(UserServiceErrorSchema),
-      )
-      .prefix("/auth"),
+    HttpApiEndpoint.post("login", "/login")
+      .setPayload(UserLoginSchema)
+      .addSuccess(UserSchemaWithToken)
+      .addError(UserServiceErrorSchema),
   )
   .add(
-    HttpApiGroup.make("user")
-      .add(
-        HttpApiEndpoint.get("profile", "/profile")
-          .addSuccess(UserSchema)
-          .addError(UserServiceErrorSchema),
-      )
-      .prefix("/user"),
-  );
+    HttpApiEndpoint.post("signup", "/signup")
+      .setPayload(UserCreateSchema)
+      .addSuccess(UserSchemaWithToken)
+      .addError(UserServiceErrorSchema),
+  )
+  .prefix("/auth");
+
+export const UserApiGroup = HttpApiGroup.make("user")
+  .add(
+    HttpApiEndpoint.get("profile", "/profile")
+      .addSuccess(UserSchema)
+      .addError(UserServiceErrorSchema),
+  )
+  .prefix("/user");
 
 const handleLogin = ({ payload }: { payload: UserLogin }) =>
   Effect.gen(function* () {
@@ -83,16 +79,16 @@ const handleSignup = ({ payload }: { payload: UserCreate }) =>
     })),
   );
 
-export const AuthGroupLive = HttpApiBuilder.group(UserApi, "auth", (handlers) =>
-  handlers.handle("login", handleLogin).handle("signup", handleSignup),
-);
+export const AuthApiGroupLive = (RootApi: any) =>
+  HttpApiBuilder.group(RootApi, "auth", (handlers) =>
+    handlers.handle("login", handleLogin).handle("signup", handleSignup),
+  );
 
 const handleProfile = () =>
   Effect.gen(function* () {
     const userService = yield* UserService;
-    const payload = yield* requireAuth;
-    yield* Console.log("Authenticated payload", payload);
-    const result = yield* userService.findById(payload.id as string);
+    const user = yield* requireAuth;
+    const result = yield* userService.findById(user.id as string);
     yield* Console.log(result);
 
     return result;
@@ -103,11 +99,7 @@ const handleProfile = () =>
     })),
   );
 
-export const UserGroupLive = HttpApiBuilder.group(UserApi, "user", (handlers) =>
-  handlers.handle("profile", handleProfile),
-);
-
-export const UserApiLive = HttpApiBuilder.api(UserApi).pipe(
-  Layer.provide(UserGroupLive),
-  Layer.provide(AuthGroupLive),
-);
+export const UserApiGroupLive = (RootApi: any) =>
+  HttpApiBuilder.group(RootApi, "user", (handlers) =>
+    handlers.handle("profile", handleProfile),
+  );

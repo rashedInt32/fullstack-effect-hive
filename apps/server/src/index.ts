@@ -8,28 +8,20 @@ import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Layer, Console } from "effect";
 import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
-import { UserServiceLive } from "./user/UserService";
-import { UserApiLive } from "./api/routes/userRoute";
 import { JwtServiceLive } from "./jwt/JwtService";
 import { AppConfigLive } from "./config/Config";
 import { AuthServiceLive } from "./auth/AuthService";
-import { RoomsApiLive } from "./api/routes/roomRoute";
 import { RoomServiceLive } from "./room/RoomService";
-import { MessageApiLive } from "./api/routes/messageRoute";
+import { RootApiLive } from "./api";
+import { UserServiceLive } from "./user/UserService";
 import { MessageServiceLive } from "./message/MessageService";
 
-const ApisLive = Layer.mergeAll(UserApiLive, MessageApiLive, RoomsApiLive);
-
 const ServerLive = HttpApiBuilder.serve().pipe(
-  Layer.provide(HttpApiSwagger.layer()),
-  Layer.provide(RoomsApiLive),
-  Layer.provide(MessageApiLive),
-  Layer.provide(UserApiLive),
+  Layer.provide(RootApiLive),
 
   Layer.provide(UserServiceLive),
-  Layer.provide(MessageServiceLive),
   Layer.provide(RoomServiceLive),
-
+  Layer.provide(MessageServiceLive),
   Layer.provide(AuthServiceLive),
   Layer.provide(JwtServiceLive),
 

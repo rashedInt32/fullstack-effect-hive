@@ -20,45 +20,43 @@ const MessageApiErrorSchema = Schema.Union(
   AuthErrorSchema,
 );
 
-export const MessageApi = HttpApi.make("MessageAPI").add(
-  HttpApiGroup.make("messages")
-    .add(
-      HttpApiEndpoint.post("create", "/create")
-        .addSuccess(MessageSchema)
-        .addError(MessageApiErrorSchema)
-        .setPayload(MessageCreateSchema),
-    )
-    .add(
-      HttpApiEndpoint.get("listByRoom", "/room/:roomId")
-        .addSuccess(Schema.Array(MessageWithUserSchema))
-        .addError(MessageApiErrorSchema)
-        .setPath(Schema.Struct({ roomId: Schema.String })),
-    )
-    .add(
-      HttpApiEndpoint.put("update", "/:messageId")
-        .addSuccess(MessageSchema)
-        .addError(MessageApiErrorSchema)
-        .setPath(
-          Schema.Struct({
-            messageId: Schema.String,
-          }),
-        )
-        .setPayload(Schema.Struct({ content: Schema.String })),
-    )
-    .add(
-      HttpApiEndpoint.del("delete", "/:messageId")
-        .addSuccess(Schema.Void)
-        .addError(MessageApiErrorSchema)
-        .setPath(
-          Schema.Struct({
-            messageId: Schema.String,
-          }),
-        ),
-    )
-    .prefix("/message"),
-);
+export const MessageApiGroup = HttpApiGroup.make("messages")
+  .add(
+    HttpApiEndpoint.post("create", "/create")
+      .addSuccess(MessageSchema)
+      .addError(MessageApiErrorSchema)
+      .setPayload(MessageCreateSchema),
+  )
+  .add(
+    HttpApiEndpoint.get("listByRoom", "/room/:roomId")
+      .addSuccess(Schema.Array(MessageWithUserSchema))
+      .addError(MessageApiErrorSchema)
+      .setPath(Schema.Struct({ roomId: Schema.String })),
+  )
+  .add(
+    HttpApiEndpoint.put("update", "/:messageId")
+      .addSuccess(MessageSchema)
+      .addError(MessageApiErrorSchema)
+      .setPath(
+        Schema.Struct({
+          messageId: Schema.String,
+        }),
+      )
+      .setPayload(Schema.Struct({ content: Schema.String })),
+  )
+  .add(
+    HttpApiEndpoint.del("delete", "/:messageId")
+      .addSuccess(Schema.Void)
+      .addError(MessageApiErrorSchema)
+      .setPath(
+        Schema.Struct({
+          messageId: Schema.String,
+        }),
+      ),
+  )
+  .prefix("/message");
 
-const handleCreate = ({ payload }: { payload: MessageCreate }) =>
+export const handleMessageCreate = ({ payload }: { payload: MessageCreate }) =>
   Effect.gen(function* () {
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
@@ -70,7 +68,11 @@ const handleCreate = ({ payload }: { payload: MessageCreate }) =>
     return result;
   });
 
-const handleListByRoom = ({ path }: { path: { roomId: string } }) =>
+export const handleMessageListByRoom = ({
+  path,
+}: {
+  path: { roomId: string };
+}) =>
   Effect.gen(function* () {
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
@@ -78,7 +80,7 @@ const handleListByRoom = ({ path }: { path: { roomId: string } }) =>
     return result;
   });
 
-const handleUpdate = ({
+export const handleMessageUpdate = ({
   path,
   payload,
 }: {
@@ -96,24 +98,13 @@ const handleUpdate = ({
     return result;
   });
 
-const handleDelete = ({ path }: { path: { messageId: string } }) =>
+export const handleMessageDelete = ({
+  path,
+}: {
+  path: { messageId: string };
+}) =>
   Effect.gen(function* () {
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
     return yield* messageService.delete(path.messageId, user.id);
   });
-
-export const MessageGroupLive = HttpApiBuilder.group(
-  MessageApi,
-  "messages",
-  (handlers) =>
-    handlers
-      .handle("create", handleCreate)
-      .handle("listByRoom", handleListByRoom)
-      .handle("update", handleUpdate)
-      .handle("delete", handleDelete),
-);
-
-export const MessageApiLive = HttpApiBuilder.api(MessageApi).pipe(
-  Layer.provide(MessageGroupLive),
-);

@@ -2,6 +2,7 @@ import { Console, Effect, Schema } from "effect";
 import {
   RoomCreateSchema,
   RoomError,
+  RoomMemberRow,
   RoomMemberRowSchema,
   RoomSchema,
   RoomUpdateSchema,
@@ -52,13 +53,14 @@ export const requireOwnerOrAdmin = (
 ) =>
   Effect.gen(function* () {
     const members = yield* sqlSafe(
-      db`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+      db<RoomMemberRow>`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
     );
 
     if (
       members.length === 0 ||
       !["owner", "admin"].includes(members[0]?.role as string)
     ) {
+      yield* Console.log("Member", members);
       return yield* Effect.fail(
         new RoomServiceError({
           code: "ROOM_ACCESS_DENIED",
@@ -66,15 +68,13 @@ export const requireOwnerOrAdmin = (
         }),
       );
     }
-    return members[0]?.role;
+    yield* Console.log("Member from utils", members);
+    return members[0] as RoomMemberRow;
   });
 
 export const toRoom = (sqlQueryResult: unknown) =>
   decodeRoom(sqlQueryResult).pipe(
     Effect.mapError((err) => {
-      Console.log("Schema decode error:", JSON.stringify(err)).pipe(
-        Effect.runSync,
-      );
       return new RoomServiceError({
         code: "INTERNAL_ROOM_ERROR",
         message: "Invalid user data returned by query: " + JSON.stringify(err),
@@ -88,8 +88,7 @@ export const toRoomMember = (sqlQueryResult: unknown) => {
       (err) =>
         new RoomServiceError({
           code: "INTERNAL_ROOM_ERROR",
-          message:
-            "Invalid user data returned by query: " + JSON.stringify(err),
+          message: `Invalid user data returned by query: ${err}`,
         }),
     ),
   );

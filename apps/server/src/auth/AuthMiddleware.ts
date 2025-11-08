@@ -1,7 +1,6 @@
 import { HttpServerRequest } from "@effect/platform";
-import { Console, Data, Effect, Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 import { AuthJWTPayload, JwtService } from "../jwt/JwtService";
-import { JWTPayload } from "jose";
 
 export const AuthErrorSchema = Schema.Struct({
   code: Schema.Literal("INVALID_TOKEN", "MISSING_TOKEN"),

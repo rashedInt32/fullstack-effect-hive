@@ -1,5 +1,4 @@
 import { Schema } from "effect";
-import { DateTimeSchema } from "./common";
 
 export const RoomServiceErrorSchema = Schema.Struct({
   message: Schema.String,
@@ -24,8 +23,8 @@ export const RoomRowSchema = Schema.Struct({
   type: Schema.Literal("channel", "dm"),
   description: Schema.Union(Schema.String, Schema.Null),
   created_by: Schema.String,
-  created_at: DateTimeSchema,
-  updated_at: DateTimeSchema,
+  created_at: Schema.instanceOf(Date),
+  updated_at: Schema.instanceOf(Date),
 });
 
 export const RoomCreateSchema = Schema.Struct({
@@ -53,7 +52,9 @@ export const RoomMemberRowSchema = Schema.Struct({
   room_id: Schema.String,
   user_id: Schema.String,
   role: Schema.Literal("admin", "member", "owner"),
-  joined_at: DateTimeSchema,
+  joined_at: Schema.DateFromString.annotations({
+    jsonSchema: { type: "string", format: "date-time" },
+  }),
 });
 
 export const RoomMemberAddSchema = Schema.Struct({

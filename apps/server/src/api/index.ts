@@ -1,37 +1,83 @@
+import { HttpApi, HttpApiBuilder } from "@effect/platform";
 import {
-  HttpApi,
-  HttpApiBuilder,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from "@effect/platform";
-import { Schema, Effect, Layer } from "effect";
-import { UserSchema, UserServiceErrorSchema } from "@hive/shared";
-import { UserService } from "../user/UserService";
+  AuthApiGropup,
+  handleLogin,
+  handleProfile,
+  handleSignup,
+  UserApiGroup,
+} from "./routes/userRoute";
+import { Layer } from "effect";
+import {
+  handleAddMember,
+  handleCreate as handleRoomCreate,
+  handleDelete as handleRoomDelete,
+  handleGetById,
+  handleGetMemberRole,
+  handleIsMember,
+  handleListByUser,
+  handleListMembers,
+  handleRemoveMember,
+  handleUpdate,
+  RoomApiGroup,
+} from "./routes/roomRoute";
+import {
+  handleMessageCreate,
+  handleMessageDelete,
+  handleMessageListByRoom,
+  handleMessageUpdate,
+  MessageApiGroup,
+} from "./routes/messageRoute";
 
-const MyApi = HttpApi.make("MyApi").add(
-  HttpApiGroup.make("greet")
-    .add(
-      HttpApiEndpoint.get("hello", "/hello")
-        .addSuccess(UserSchema)
-        .addError(UserServiceErrorSchema),
-    )
-    .add(HttpApiEndpoint.get("goodbye", "/goodbye").addSuccess(Schema.String)),
+export const RootApi = HttpApi.make("RootApi")
+  .add(AuthApiGropup)
+  .add(UserApiGroup)
+  .add(RoomApiGroup)
+  .add(MessageApiGroup);
+
+export const AuthApiGroupLive = HttpApiBuilder.group(
+  RootApi,
+  "auth",
+  (handlers) =>
+    handlers.handle("login", handleLogin).handle("signup", handleSignup),
 );
 
-const greetLive = HttpApiBuilder.group(MyApi, "greet", (handlers) =>
-  handlers
-    .handle("hello", () =>
-      Effect.gen(function* () {
-        const userService = yield* UserService;
-        const user = yield* userService.create("Sheldon", "Pwd1234!");
-        return user;
-      }).pipe(
-        Effect.mapError((err) => ({ code: err.code, message: err.message })),
-      ),
-    )
-    .handle("goodbye", () => Effect.succeed("Goodbye")),
+export const UserApiGroupLive = HttpApiBuilder.group(
+  RootApi,
+  "user",
+  (handlers) => handlers.handle("profile", handleProfile),
 );
 
-export const MyApiLive = HttpApiBuilder.api(MyApi).pipe(
-  Layer.provide(greetLive),
+export const RoomsApiGroupLive = HttpApiBuilder.group(
+  RootApi,
+  "rooms",
+  (handlers) =>
+    handlers
+      .handle("create", handleRoomCreate)
+      .handle("getById", handleGetById)
+      .handle("listByUser", handleListByUser)
+      .handle("update", handleUpdate)
+      .handle("delete", handleRoomDelete)
+      .handle("addMember", handleAddMember)
+      .handle("removeMember", handleRemoveMember)
+      .handle("listMembers", handleListMembers)
+      .handle("getMemberRole", handleGetMemberRole)
+      .handle("isMember", handleIsMember),
+);
+
+export const MessageApiGroupLive = HttpApiBuilder.group(
+  RootApi,
+  "messages",
+  (handlers) =>
+    handlers
+      .handle("create", handleMessageCreate)
+      .handle("listByRoom", handleMessageListByRoom)
+      .handle("update", handleMessageUpdate)
+      .handle("delete", handleMessageDelete),
+);
+
+export const RootApiLive = HttpApiBuilder.api(RootApi).pipe(
+  Layer.provide(AuthApiGroupLive),
+  Layer.provide(UserApiGroupLive),
+  Layer.provide(RoomsApiGroupLive),
+  Layer.provide(MessageApiGroupLive),
 );
