@@ -1,9 +1,4 @@
-import {
-  HttpApi,
-  HttpApiBuilder,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
 import {
   RoomCreate,
   RoomCreateSchema,
@@ -18,8 +13,8 @@ import {
   RoomMemberRemoveSchema,
   RoomMemberAdd,
 } from "@hive/shared";
-import { Console, Effect, Layer, Schema } from "effect";
-import { RoomService, RoomServiceError } from "../../room/RoomService";
+import { Effect, Schema } from "effect";
+import { RoomService } from "../../room/RoomService";
 import { AuthErrorSchema, requireAuth } from "../../auth/AuthMiddleware";
 
 const RoomApiErrorSchema = Schema.Union(
@@ -121,8 +116,6 @@ export const handleCreate = ({ payload }: { payload: RoomCreate }) =>
       payload.created_by,
       payload.description,
     );
-
-    yield* Console.log("result", result);
 
     return result;
   });

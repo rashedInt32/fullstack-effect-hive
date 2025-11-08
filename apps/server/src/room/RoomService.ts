@@ -5,14 +5,13 @@ import {
   RoomRow,
   RoomWithMembers,
 } from "@hive/shared";
-import { Console, Context, Data, Effect, Layer } from "effect";
+import { Context, Data, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
 import {
   decodeRoomCreate,
   requireOwnerOrAdmin,
   sqlSafe,
   toRoom,
-  toRoomMember,
   validateRoomExists,
 } from "./Utils";
 
@@ -155,8 +154,6 @@ export const RoomServiceLive = Layer.effect(
         Effect.gen(function* () {
           yield* requireOwnerOrAdmin(db, id, userId);
 
-          yield* Console.log(id, userId, data);
-
           if (!data.name && !data.description) {
             return yield* Effect.fail(
               new RoomServiceError({
@@ -204,8 +201,8 @@ export const RoomServiceLive = Layer.effect(
         role: "admin" | "member",
       ) =>
         Effect.gen(function* () {
-          // yield* requireOwnerOrAdmin(db, roomId, requesterId);
-          // yield* validateRoomExists(db, roomId);
+          yield* requireOwnerOrAdmin(db, roomId, requesterId);
+          yield* validateRoomExists(db, roomId);
 
           const existingMember = yield* sqlSafe(db`SELECT
             id, role, room_id 
@@ -213,10 +210,7 @@ export const RoomServiceLive = Layer.effect(
           WHERE user_id = ${userId}
           LIMIT 1`);
 
-          yield* Console.log("Existing member", existingMember);
-
           if (existingMember.length > 0) {
-            yield* Console.log("this should run");
             return yield* Effect.fail(
               new RoomServiceError({
                 code: "ROOM_MEMBER_ALREADY_EXISTS",
@@ -225,12 +219,10 @@ export const RoomServiceLive = Layer.effect(
             );
           }
 
-          yield* Console.log("this should not be run");
           const member = yield* sqlSafe(
             db`INSERT INTO room_members (user_id, room_id, role) VALUES (${userId}, ${roomId}, ${role}) RETURNING id, user_id, room_id, role, joined_at`,
           );
 
-          yield* Console.log("inserted data", member);
           if (member.length === 0) {
             return yield* Effect.fail(
               new RoomServiceError({

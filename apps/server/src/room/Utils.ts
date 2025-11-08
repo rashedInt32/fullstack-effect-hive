@@ -1,7 +1,6 @@
-import { Console, Effect, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import {
   RoomCreateSchema,
-  RoomError,
   RoomMemberRow,
   RoomMemberRowSchema,
   RoomSchema,
@@ -60,7 +59,6 @@ export const requireOwnerOrAdmin = (
       members.length === 0 ||
       !["owner", "admin"].includes(members[0]?.role as string)
     ) {
-      yield* Console.log("Member", members);
       return yield* Effect.fail(
         new RoomServiceError({
           code: "ROOM_ACCESS_DENIED",
@@ -68,7 +66,6 @@ export const requireOwnerOrAdmin = (
         }),
       );
     }
-    yield* Console.log("Member from utils", members);
     return members[0] as RoomMemberRow;
   });
 

@@ -1,14 +1,7 @@
 import { Context, Data, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
 import { UserRow, User, UserError } from "@hive/shared";
-import {
-  comparePassword,
-  decodeAuth,
-  decodeCreate,
-  passwordHash,
-  sqlSafe,
-  toUser,
-} from "./Utils";
+import { decodeCreate, passwordHash, sqlSafe, toUser } from "./Utils";
 import { JwtError, JwtService } from "../jwt/JwtService";
 
 export class UserServiceError extends Data.TaggedError(

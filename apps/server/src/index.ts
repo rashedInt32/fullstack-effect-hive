@@ -1,9 +1,4 @@
-import {
-  FetchHttpClient,
-  HttpApiBuilder,
-  HttpApiClient,
-  HttpApiSwagger,
-} from "@effect/platform";
+import { HttpApiBuilder } from "@effect/platform";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Layer, Console } from "effect";
 import { createServer } from "node:http";

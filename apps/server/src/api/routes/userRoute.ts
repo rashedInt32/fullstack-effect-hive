@@ -1,10 +1,5 @@
-import {
-  HttpApi,
-  HttpApiBuilder,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from "@effect/platform";
-import { Console, Effect, Layer, Schema } from "effect";
+import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
+import { Effect, Schema } from "effect";
 import {
   UserCreateSchema,
   UserSchema,
@@ -45,14 +40,13 @@ export const UserApiGroup = HttpApiGroup.make("user")
   )
   .prefix("/user");
 
-const handleLogin = ({ payload }: { payload: UserLogin }) =>
+export const handleLogin = ({ payload }: { payload: UserLogin }) =>
   Effect.gen(function* () {
     const authService = yield* AuthService;
     const result = yield* authService.authenticate(
       payload.username,
       payload.password,
     );
-    yield* Console.log(result);
 
     return result;
   }).pipe(
@@ -62,10 +56,9 @@ const handleLogin = ({ payload }: { payload: UserLogin }) =>
     })),
   );
 
-const handleSignup = ({ payload }: { payload: UserCreate }) =>
+export const handleSignup = ({ payload }: { payload: UserCreate }) =>
   Effect.gen(function* () {
     const userService = yield* UserService;
-    yield* Console.log(payload);
     const result = yield* userService.create(
       payload.username,
       payload.password,
@@ -79,17 +72,11 @@ const handleSignup = ({ payload }: { payload: UserCreate }) =>
     })),
   );
 
-export const AuthApiGroupLive = (RootApi: any) =>
-  HttpApiBuilder.group(RootApi, "auth", (handlers) =>
-    handlers.handle("login", handleLogin).handle("signup", handleSignup),
-  );
-
-const handleProfile = () =>
+export const handleProfile = () =>
   Effect.gen(function* () {
     const userService = yield* UserService;
     const user = yield* requireAuth;
     const result = yield* userService.findById(user.id as string);
-    yield* Console.log(result);
 
     return result;
   }).pipe(
@@ -97,9 +84,4 @@ const handleProfile = () =>
       code: err.code,
       message: err.message,
     })),
-  );
-
-export const UserApiGroupLive = (RootApi: any) =>
-  HttpApiBuilder.group(RootApi, "user", (handlers) =>
-    handlers.handle("profile", handleProfile),
   );
