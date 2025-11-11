@@ -27,7 +27,6 @@ const ServerLive = HttpApiBuilder.serve().pipe(
 );
 
 Layer.launch(ServerLive).pipe(NodeRuntime.runMain);
-
 // const program = Effect.gen(function* () {
 //   const client = yield* HttpApiClient.make(MyApi, {
 //     baseUrl: "http://localhost:3002",
