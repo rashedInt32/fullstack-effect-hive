@@ -17,7 +17,7 @@ export interface RealTimeBusInterface {
   ) => Effect.Effect<Stream.Stream<RoomEvent>, never, Scope.Scope>;
 }
 
-export class RealTimeBus extends Context.Tag("RealTimeBug")<
+export class RealTimeBus extends Context.Tag("RealTimeBus")<
   RealTimeBus,
   RealTimeBusInterface
 >() {}

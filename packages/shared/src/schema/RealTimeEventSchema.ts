@@ -30,9 +30,8 @@ export const MessageDeletedEventSchema = Schema.Struct({
 });
 
 export const RoomCreatedEventSchema = Schema.Struct({
-  ...BaseEventSchema.fields,
-  type: Schema.Literal("room.created"),
   timestamp: Schema.DateFromString,
+  type: Schema.Literal("room.created"),
   room: RoomSchema,
 });
 
@@ -66,7 +65,7 @@ export const RoomMemberRemovedEventSchema = Schema.Struct({
   type: Schema.Literal("room.member_removed"),
   userId: Schema.String,
   username: Schema.String,
-  removedby: Schema.String,
+  removedBy: Schema.String,
 });
 
 export const RoomMemberRoleChangeEventSchema = Schema.Struct({

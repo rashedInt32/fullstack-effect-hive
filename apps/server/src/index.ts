@@ -10,6 +10,7 @@ import { RoomServiceLive } from "./room/RoomService";
 import { RootApiLive } from "./api";
 import { UserServiceLive } from "./user/UserService";
 import { MessageServiceLive } from "./message/MessageService";
+import { RealTimeBusLive } from "./realtime/RealtimeBus";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(RootApiLive),
@@ -19,6 +20,7 @@ const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(MessageServiceLive),
   Layer.provide(AuthServiceLive),
   Layer.provide(JwtServiceLive),
+  Layer.provide(RealTimeBusLive),
 
   Layer.provide(DbLive),
   Layer.provide(AppConfigLive),
