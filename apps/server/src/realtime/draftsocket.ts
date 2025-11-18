@@ -1,9 +1,22 @@
+import { HttpServerRequest } from "@effect/platform";
+import { NodeSocket } from "@effect/platform-node";
 import {
   RoomEvent,
+  WSClientMessage,
   WSClientMessageSchema,
   WSServerMessage,
 } from "@hive/shared";
-import { Console, Effect, Fiber, Ref, Runtime, Schema, Stream } from "effect";
+import {
+  Console,
+  Effect,
+  Fiber,
+  Layer,
+  Ref,
+  Schema,
+  Scope,
+  Stream,
+} from "effect";
+import { IncomingMessage } from "http";
 import { WebSocket, WebSocketServer as WSServer } from "ws";
 import { JwtService } from "../jwt/JwtService";
 import { MessageService } from "../message/MessageService";
@@ -70,7 +83,7 @@ const handleAuthentication = (
       ),
     );
 
-    const user = yield* userService.findById(payload.id).pipe(
+    const user = yield* userService.findById(payload.userId).pipe(
       Effect.catchAll((error) =>
         Effect.gen(function* () {
           yield* sendError(ws, "USER_NOT_FOUND", "User not found");
@@ -128,9 +141,8 @@ const stopEventStream = (state: Ref.Ref<ConnectionState>) =>
   Effect.gen(function* () {
     const currentState = yield* Ref.get(state);
 
-    const fiber = currentState.streamFiber;
-    if (fiber) {
-      yield* Fiber.interrupt(fiber);
+    if (currentState.streamFiber) {
+      yield* Fiber.interrupt(currentState.streamFiber);
       yield* Ref.update(state, (s) => ({
         ...s,
         streamFiber: null,
@@ -207,10 +219,8 @@ const handleUnsubscribe = (
       return;
     }
 
-    // stop the running stream before changing subscriptions
     yield* stopEventStream(state);
 
-    // remove the room from subscribedRooms
     yield* Ref.update(state, (s) => {
       const newRooms = new Set(s.subscribedRooms);
       newRooms.delete(roomId);
@@ -220,9 +230,7 @@ const handleUnsubscribe = (
       };
     });
 
-    // read updated state and, if there are still rooms, restart the stream
-    const updatedState = yield* Ref.get(state);
-    if (updatedState.subscribedRooms.size > 0) {
+    if (currentState.subscribedRooms.size > 1) {
       yield* startEventStream(ws, state);
     }
 
@@ -249,10 +257,8 @@ const handleMessageSend = (
     }
 
     const messageService = yield* MessageService;
-    const userService = yield* UserService;
     const bus = yield* RealTimeBus;
 
-    // create the message in DB (or service)
     const message = yield* messageService
       .create(currentState.userId, roomId, content)
       .pipe(
@@ -263,38 +269,7 @@ const handleMessageSend = (
               "MESSAGE_SEND_FAILED",
               "Failed to send message",
             );
-            // log the error for debugging
-            yield* Console.error("messageService.create error:", error);
             return yield* Effect.fail(error);
-          }),
-        ),
-      );
-
-    // publish the new message to RealTimeBus so subscribers get it
-    // (this is the crucial missing line from the original)
-    const user = yield* userService.findById(currentState.userId);
-
-    const enrichedMessage = {
-      ...message,
-      username: user.username,
-      user_email: user.email ?? null,
-      is_edited: false,
-    };
-    yield* bus
-      .publish({
-        type: "message.created",
-        roomId,
-        message: enrichedMessage,
-        timestamp: new Date(),
-      })
-      .pipe(
-        Effect.catchAll((error) =>
-          Effect.gen(function* () {
-            yield* Console.error(
-              "Failed to publish message to RealTimeBus:",
-              error,
-            );
-            return yield* Effect.void;
           }),
         ),
       );
@@ -329,7 +304,7 @@ const handleTyping = (
       userId: currentState.userId,
       username: currentState.username,
       isTyping,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -391,7 +366,7 @@ const handleClientMessage = (
 
 const handleConnection = (
   ws: WebSocket,
-  runtime: Runtime.Runtime<
+  runtime: Effect.Runtime<
     JwtService | UserService | RoomService | MessageService | RealTimeBus
   >,
 ) =>
@@ -400,7 +375,7 @@ const handleConnection = (
 
     ws.on("message", (data: Buffer) => {
       const program = handleClientMessage(ws, state, data.toString());
-      Runtime.runFork(runtime);
+      Effect.runFork(program.pipe(Effect.provide(runtime)));
     });
 
     ws.on("close", () => {
@@ -416,7 +391,7 @@ const handleConnection = (
     });
 
     ws.on("error", (error) => {
-      const errorHandler = Console.error(`WebSocket error: ${String(error)}`);
+      const errorHandler = Console.error("WebSocket error:", error);
       Effect.runFork(errorHandler.pipe(Effect.provide(runtime)));
     });
 

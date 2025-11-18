@@ -14,6 +14,7 @@ import {
   toMessage,
   toMessageWithUser,
 } from "./messageUtils";
+import { RealTimeBus } from "../realtime/RealtimeBus";
 
 export class MessageServiceError extends Data.TaggedError(
   "MessageServiceError",
@@ -53,6 +54,7 @@ export const MessageServiceLive = Layer.effect(
   MessageService,
   Effect.gen(function* () {
     const sql = yield* Db;
+    const bus = yield* RealTimeBus;
 
     return MessageService.of({
       create: (userId: string, roomId: string, content: string) =>
@@ -136,6 +138,16 @@ export const MessageServiceLive = Layer.effect(
           SET content = ${content}, updated_at = NOW()
           WHERE id = ${messageId}
           RETURNING id, room_id, user_id, content, created_at, updated_at`);
+
+          yield* bus.publish({
+            type: "message.updated",
+            timestamp: new Date(),
+            userId,
+            roomId: row[0]?.room_id as string,
+            content,
+            messageId,
+            updatedAt: new Date(),
+          });
 
           return yield* toMessage(row[0]);
         }),

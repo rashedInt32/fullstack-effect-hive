@@ -14,6 +14,7 @@ import {
   toRoom,
   validateRoomExists,
 } from "./Utils";
+import { RealTimeBus } from "../realtime/RealtimeBus";
 
 export class RoomServiceError extends Data.TaggedError(
   "RoomServiceError",
@@ -71,6 +72,7 @@ export const RoomServiceLive = Layer.effect(
   RoomService,
   Effect.gen(function* () {
     const db = yield* Db;
+    const bus = yield* RealTimeBus;
 
     return RoomService.of({
       create: (
@@ -111,6 +113,12 @@ export const RoomServiceLive = Layer.effect(
           );
 
           const room = yield* toRoom(result[0]);
+
+          yield* bus.publish({
+            type: "room.created",
+            room: room,
+            timestamp: new Date(),
+          });
 
           return room;
         }),
@@ -186,12 +194,29 @@ export const RoomServiceLive = Layer.effect(
           }
 
           const room = yield* toRoom(query[0]);
+
+          yield* bus.publish({
+            type: "room.updated",
+            roomId: room.id,
+            timestamp: new Date(),
+            updates: {
+              name: room.name,
+              description: room.description as string,
+            },
+            updatedBy: userId,
+          });
           return room;
         }),
       delete: (id: string, userId: string) =>
         Effect.gen(function* () {
           yield* requireOwnerOrAdmin(db, id, userId);
           yield* validateRoomExists(db, id);
+          yield* bus.publish({
+            type: "room.deleted",
+            roomId: id,
+            timestamp: new Date(),
+            deletedBy: userId,
+          });
           return yield* sqlSafe(db`DELETE FROM rooms WHERE id = ${id}`);
         }),
       addMember: (
@@ -232,6 +257,20 @@ export const RoomServiceLive = Layer.effect(
             );
           }
 
+          const user = yield* sqlSafe(
+            db`SELECT username FROM users WHERE id = ${userId}`,
+          );
+
+          yield* bus.publish({
+            type: "room.member_added",
+            roomId,
+            timestamp: new Date(),
+            userId,
+            username: user[0]?.username as string,
+            role,
+            addedBy: requesterId,
+          });
+
           return member[0] as RoomMemberRow;
         }),
       removeMember: (roomId: string, userId: string, requesterId: string) =>
@@ -239,6 +278,10 @@ export const RoomServiceLive = Layer.effect(
           yield* requireOwnerOrAdmin(db, roomId, requesterId);
           const targetedMember = yield* sqlSafe(
             db`SELECT role FROM room_members WHERE room_id = ${roomId} AND user_id = ${userId} LIMIT 1`,
+          );
+
+          const user = yield* sqlSafe(
+            db`SELECT username FROM users WHERE id = ${userId}`,
           );
 
           if (targetedMember[0]?.role === "owner") {
@@ -249,6 +292,15 @@ export const RoomServiceLive = Layer.effect(
               }),
             );
           }
+
+          yield* bus.publish({
+            type: "room.member_removed",
+            roomId,
+            timestamp: new Date(),
+            userId,
+            username: user[0]?.username as string,
+            removedBy: requesterId,
+          });
 
           yield* sqlSafe(
             db`DELETE FROM room_members WHERE user_id = ${userId} AND room_id = ${roomId}`,

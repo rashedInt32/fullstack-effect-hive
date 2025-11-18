@@ -32,7 +32,8 @@ export const RootApi = HttpApi.make("RootApi")
   .add(AuthApiGropup)
   .add(UserApiGroup)
   .add(RoomApiGroup)
-  .add(MessageApiGroup);
+  .add(MessageApiGroup)
+  .prefix("/api");
 
 export const AuthApiGroupLive = HttpApiBuilder.group(
   RootApi,

@@ -39,12 +39,12 @@ export const WSClientMessageSchema = Schema.Union(
 export const WSAuthenticatedMessageSchema = Schema.Struct({
   type: Schema.Literal("authenticated"),
   userId: Schema.String,
-  userName: Schema.String,
+  username: Schema.String,
 });
 
 export const WSErrorMessageSchema = Schema.Struct({
   type: Schema.Literal("error"),
-  code: Schema.Number,
+  code: Schema.String,
   message: Schema.String,
 });
 
