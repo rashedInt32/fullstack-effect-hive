@@ -1,6 +1,6 @@
 const TOKEN_KEY = "hive_auth_token";
 
-const tokenStorage = {
+export const tokenStorage = {
   get: (): string | null => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(TOKEN_KEY);

@@ -152,6 +152,9 @@ importers:
       '@hive/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@hive/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@hive/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
