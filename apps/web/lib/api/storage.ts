@@ -14,7 +14,7 @@ export const tokenStorage = {
     localStorage.removeItem(TOKEN_KEY);
   },
 
-  hasTokne: (): boolean => {
+  hasToken: (): boolean => {
     return tokenStorage.get() !== null;
   },
 };

@@ -12,7 +12,6 @@ import {
   RoomUpdate,
   RoomWithMembers,
   User,
-  UserRow,
 } from "@hive/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api";
@@ -48,10 +47,10 @@ const apiFetchWithAuth = <T>(url: string, options?: RequestInit) =>
 
 export const apiClient = {
   auth: {
-    login: (email: string, password: string) =>
+    login: (credentials: { email: string; password: string }) =>
       apiFetchWithAuth<User & { token: string }>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(credentials),
       }).pipe(
         Effect.tap((data) => Effect.sync(() => tokenStorage.set(data.token))),
       ),
