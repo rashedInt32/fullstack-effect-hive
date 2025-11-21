@@ -1,3 +1,4 @@
+"use client";
 const TOKEN_KEY = "hive_auth_token";
 
 export const tokenStorage = {

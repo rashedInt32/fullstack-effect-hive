@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +22,13 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Schema } from "effect";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
+import { authAtom, loginAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
+import { Loader2 } from "lucide-react";
 
 const LoginSchema = Schema.Struct({
-  email: Schema.String.pipe(
-    Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, {
-      message: () => "Invalid email address",
-    }),
+  username: Schema.String.pipe(
+    Schema.nonEmptyString({ message: () => "Username is required" }),
   ),
   password: Schema.String.pipe(
     Schema.nonEmptyString({ message: () => "Password is required" }),
@@ -35,16 +38,32 @@ const LoginSchema = Schema.Struct({
 type LoginType = Schema.Schema.Type<typeof LoginSchema>;
 
 export default function LoginPage() {
+  const router = useRouter();
+  const authState = useAtomValue(authAtom);
+  const setLogin = useAtomSet(loginAtom);
+  const initializeAuth = useAtomSet(initializeAuthAtom);
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
   const form = useForm<LoginType>({
     resolver: effectTsResolver(LoginSchema),
     defaultValues: {
-      email: "",
+      username: "",
       password: "",
     },
   });
+
   const handleSubmit = (data: LoginType) => {
-    console.log(data);
+    setLogin(data);
   };
+
+  console.log(authState);
+
+  if (authState.isAuthenticated) {
+    router.push("/chat");
+  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <Card className="w-full max-w-md">
@@ -52,6 +71,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
             Enter your credentials to access your account
+            {JSON.stringify(authState)}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -59,10 +79,10 @@ export default function LoginPage() {
             <FieldGroup>
               <Controller
                 control={form.control}
-                name="email"
+                name="username"
                 render={({ field, fieldState }) => (
                   <Field>
-                    <FieldLabel htmlFor="email">Email</FieldLabel>
+                    <FieldLabel htmlFor="email">Username</FieldLabel>
                     <Input
                       {...field}
                       id="email"
@@ -96,8 +116,15 @@ export default function LoginPage() {
                   </Field>
                 )}
               />
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={authState.loading}
+              >
+                {authState.loading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {authState.loading ? "Signing in..." : "Sign In"}
               </Button>
             </FieldGroup>
           </form>

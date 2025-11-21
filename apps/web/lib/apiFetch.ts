@@ -10,6 +10,18 @@ export const apiFetch = <T>(input: string, init: RequestInit) =>
     Effect.flatMap((res) =>
       res.ok
         ? Effect.tryPromise(() => res.json() as Promise<T>)
-        : Effect.fail(new Error(`${res.status}`)),
+        : Effect.tryPromise(() => res.json()).pipe(
+            Effect.flatMap((errorBody: any) =>
+              Effect.fail(
+                new Error(
+                  JSON.stringify({
+                    status: res.status,
+                    ...errorBody,
+                  }),
+                ),
+              ),
+            ),
+            Effect.catchAll(() => Effect.fail(new Error(`HTTP ${res.status}`))),
+          ),
     ),
   );

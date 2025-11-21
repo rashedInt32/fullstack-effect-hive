@@ -16,24 +16,30 @@ const initialState: AuthState = {
   user: null,
   loading: false,
   error: null,
-  isAuthenticated: tokenStorage.hasToken(),
+  isAuthenticated: false,
 };
 
 export const authAtom = Atom.make<AuthState>(initialState);
 
-// make atom
-//
-export const makeAtom = Atom.make<{ name: string }>({ name: "" });
-
-export const makeWritableAtom = Atom.writable(
-  (get) => get(makeAtom),
-  (ctx) => ctx.setSelf({ name: "Rashed" }),
+export const initializeAuthAtom = Atom.writable(
+  (get) => get(authAtom),
+  (ctx, _?: void) => {
+    if (typeof window !== "undefined") {
+      const hasToken = tokenStorage.hasToken();
+      if (hasToken) {
+        ctx.set(authAtom, {
+          ...ctx.get(authAtom),
+          isAuthenticated: true,
+        });
+      }
+    }
+  },
 );
 
 export const loginAtom = Atom.writable(
   (get) => get(authAtom),
-  (ctx, credentials: { email: string; password: string }) => {
-    ctx.setSelf({
+  (ctx, credentials: { username: string; password: string }) => {
+    ctx.set(authAtom, {
       ...ctx.get(authAtom),
       loading: true,
       error: null,
@@ -44,64 +50,68 @@ export const loginAtom = Atom.writable(
         Effect.tap((response) =>
           Effect.sync(() => {
             tokenStorage.set(response.token);
-            ctx.setSelf({
+            ctx.set(authAtom, {
               user: response,
               loading: false,
-              error: null,
               isAuthenticated: true,
+              error: null,
             });
           }),
         ),
         Effect.catchAll((error) =>
-          Effect.sync(() => {
-            ctx.setSelf({
-              ...ctx.get(authAtom),
+          Effect.sync(() =>
+            ctx.set(authAtom, {
+              user: null,
+              isAuthenticated: false,
               loading: false,
               error:
                 error instanceof ApiError
                   ? error
                   : new ApiError("Unknown error", "UNKNOWN_ERROR"),
-            });
-          }),
+            }),
+          ),
         ),
       ),
     );
   },
 );
 
-export const signupAtom = Atom.writable(
+export const singunAtom = Atom.writable(
   (get) => get(authAtom),
-  (ctx, credentials: { email: string; password: string }) => {
-    ctx.setSelf({
+  (
+    ctx,
+    credentials: { username: string; password: string; email?: string },
+  ) => {
+    ctx.set(authAtom, {
       ...ctx.get(authAtom),
       loading: true,
       error: null,
     });
 
     Effect.runPromise(
-      apiClient.auth.signup(credentials.email, credentials.password).pipe(
+      apiClient.auth.signup(credentials).pipe(
         Effect.tap((response) =>
           Effect.sync(() => {
             tokenStorage.set(response.token);
-            ctx.setSelf({
+            ctx.set(authAtom, {
               user: response,
               loading: false,
-              error: null,
               isAuthenticated: true,
+              error: null,
             });
           }),
         ),
         Effect.catchAll((error) =>
-          Effect.sync(() => {
-            ctx.setSelf({
+          Effect.sync(() =>
+            ctx.set(authAtom, {
               ...ctx.get(authAtom),
               loading: false,
               error:
                 error instanceof ApiError
                   ? error
-                  : new ApiError("Unknown error", "UNKNOWN_ERROR"),
-            });
-          }),
+                  : new ApiError("Unknown Error", "UNKNOWN_ERROR"),
+            }),
+          ),
         ),
       ),
     );
@@ -112,6 +122,6 @@ export const logoutAtom = Atom.writable(
   (get) => get(authAtom),
   (ctx) => {
     tokenStorage.clear();
-    ctx.setSelf(initialState);
+    ctx.set(authAtom, initialState);
   },
 );

@@ -16,6 +16,14 @@ import { createWebSocketServer } from "./realtime/WebSocketServer";
 const httpServer = createServer();
 
 const ServerLive = HttpApiBuilder.serve().pipe(
+  Layer.provide(
+    HttpApiBuilder.middlewareCors({
+      allowedOrigins: ["http://localhost:3000"],
+      allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+      credentials: true,
+    }),
+  ),
   Layer.provide(RootApiLive),
 
   Layer.provide(UserServiceLive),

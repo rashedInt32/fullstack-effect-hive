@@ -18,7 +18,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api";
 
 const apiFetchWithAuth = <T>(url: string, options?: RequestInit) =>
   Effect.gen(function* () {
-    const token = localStorage.get();
+    const token = tokenStorage.get();
 
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -34,6 +34,15 @@ const apiFetchWithAuth = <T>(url: string, options?: RequestInit) =>
   }).pipe(
     Effect.catchAll((err) => {
       if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.code && parsed.message) {
+            return Effect.fail(
+              new ApiError(parsed.message, parsed.code, parsed.status),
+            );
+          }
+        } catch {}
+
         const apiError = new ApiError(
           err.message,
           "FETCH_ERROR",
@@ -47,17 +56,21 @@ const apiFetchWithAuth = <T>(url: string, options?: RequestInit) =>
 
 export const apiClient = {
   auth: {
-    login: (credentials: { email: string; password: string }) =>
+    login: (credentials: { username: string; password: string }) =>
       apiFetchWithAuth<User & { token: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify(credentials),
       }).pipe(
         Effect.tap((data) => Effect.sync(() => tokenStorage.set(data.token))),
       ),
-    signup: (username: string, password: string, email?: string) =>
+    signup: (credentials: {
+      username: string;
+      password: string;
+      email?: string;
+    }) =>
       apiFetchWithAuth<User & { token: string }>("/auth/signup", {
         method: "POST",
-        body: JSON.stringify({ username, password, email }),
+        body: JSON.stringify(credentials),
       }).pipe(
         Effect.tap((data) => Effect.sync(() => tokenStorage.set(data.token))),
       ),
