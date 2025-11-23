@@ -1,12 +1,11 @@
-export class ApiError {
-  readonly _tag = "ApiError";
+import { Data } from "effect";
 
-  constructor(
-    public readonly message: string,
-    public readonly code?: string,
-    public readonly status?: number,
-  ) {}
-}
+export class ApiError extends Data.TaggedError("ApiError")<{
+  readonly message: string;
+  readonly code: string;
+  readonly status?: number;
+  readonly cause?: unknown;
+}> {}
 
 export type ApiResponse<T> =
   | { data: T; error: null }

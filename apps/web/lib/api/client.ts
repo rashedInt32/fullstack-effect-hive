@@ -1,7 +1,7 @@
 import { tokenStorage } from "@/lib/api/storage";
 import { ApiError } from "@/lib/api/types";
 import { apiFetch } from "@/lib/apiFetch";
-import { Effect } from "effect";
+import { Console, Effect } from "effect";
 import {
   Message,
   MessageCreate,
@@ -16,48 +16,20 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api";
 
-const apiFetchWithAuth = <T>(url: string, options?: RequestInit) =>
-  Effect.gen(function* () {
-    const token = tokenStorage.get();
-
-    const headers: HeadersInit = {
+export const apiFetchWithAuth = <T>(url: string, init?: RequestInit) =>
+  apiFetch<T>(url, {
+    ...init,
+    headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    };
-
-    const response = yield* apiFetch<T>(API_URL + url, {
-      ...options,
-      headers,
-    });
-    return response;
-  }).pipe(
-    Effect.catchAll((err) => {
-      if (err instanceof Error) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.code && parsed.message) {
-            return Effect.fail(
-              new ApiError(parsed.message, parsed.code, parsed.status),
-            );
-          }
-        } catch {}
-
-        const apiError = new ApiError(
-          err.message,
-          "FETCH_ERROR",
-          err.message.includes("401") ? 401 : 500,
-        );
-        return Effect.fail(apiError);
-      }
-      return Effect.fail(new ApiError("Unknown error", "UNKNOWN_ERROR", 500));
-    }),
-  );
+      Authorization: `Bearer ${tokenStorage.get() ?? ""}`,
+      ...(init?.headers ?? {}),
+    },
+  });
 
 export const apiClient = {
   auth: {
     login: (credentials: { username: string; password: string }) =>
-      apiFetchWithAuth<User & { token: string }>("/auth/login", {
+      apiFetch<User & { token: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify(credentials),
       }).pipe(
@@ -68,7 +40,7 @@ export const apiClient = {
       password: string;
       email?: string;
     }) =>
-      apiFetchWithAuth<User & { token: string }>("/auth/signup", {
+      apiFetch<User & { token: string }>("/auth/signup", {
         method: "POST",
         body: JSON.stringify(credentials),
       }).pipe(

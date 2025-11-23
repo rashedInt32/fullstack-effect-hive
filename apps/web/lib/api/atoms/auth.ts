@@ -58,8 +58,9 @@ export const loginAtom = Atom.writable(
             });
           }),
         ),
-        Effect.catchAll((error) =>
-          Effect.sync(() =>
+        Effect.catchAll((error) => {
+          console.log("Login error caught:", error);
+          return Effect.sync(() =>
             ctx.set(authAtom, {
               user: null,
               isAuthenticated: false,
@@ -67,10 +68,13 @@ export const loginAtom = Atom.writable(
               error:
                 error instanceof ApiError
                   ? error
-                  : new ApiError("Unknown error", "UNKNOWN_ERROR"),
+                  : new ApiError({
+                      message: "Unknown error",
+                      code: "UNKNOWN_ERROR",
+                    }),
             }),
-          ),
-        ),
+          );
+        }),
       ),
     );
   },

@@ -59,8 +59,6 @@ export default function LoginPage() {
     setLogin(data);
   };
 
-  console.log(authState);
-
   if (authState.isAuthenticated) {
     router.push("/chat");
   }
@@ -116,6 +114,9 @@ export default function LoginPage() {
                   </Field>
                 )}
               />
+              {authState.error && (
+                <p className="text-red-600">{authState.error.message}</p>
+              )}
               <Button
                 type="submit"
                 className="w-full"
