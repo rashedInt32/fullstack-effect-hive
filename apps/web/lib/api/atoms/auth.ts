@@ -80,7 +80,7 @@ export const loginAtom = Atom.writable(
   },
 );
 
-export const singunAtom = Atom.writable(
+export const signupAtom = Atom.writable(
   (get) => get(authAtom),
   (
     ctx,
@@ -113,7 +113,10 @@ export const singunAtom = Atom.writable(
               error:
                 error instanceof ApiError
                   ? error
-                  : new ApiError("Unknown Error", "UNKNOWN_ERROR"),
+                  : new ApiError({
+                      message: "Unknown Error",
+                      code: "UNKNOWN_ERROR",
+                    }),
             }),
           ),
         ),

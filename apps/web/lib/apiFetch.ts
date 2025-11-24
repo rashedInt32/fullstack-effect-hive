@@ -10,51 +10,38 @@ const parseJson = (text: string) =>
   });
 
 export const apiFetch = <T>(url: string, init?: RequestInit) =>
-  Effect.tryPromise({
-    try: async () => {
-      const res = await fetch(API_URL + url, {
+  Effect.gen(function* () {
+    const res = yield* Effect.promise(() =>
+      fetch(API_URL + url, {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers ?? {}),
         },
         ...init,
-      });
-      const text = await res.text();
-      let body;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = { message: text };
-      }
+      }),
+    );
 
-      if (!res.ok) {
-        throw new ApiError({
-          message: body.message ?? `HTTP ${res.status}`,
+    const text = yield* Effect.promise(() => res.text());
+    const body = yield* parseJson(text);
+
+    if (!res.ok) {
+      return yield* Effect.fail(
+        new ApiError({
+          message: body.message ?? "Response not ok",
           code: body.code ?? "HTTP_ERROR",
-          status: res.status,
-        });
-      }
-      return body as T;
-    },
+          status: body.status ?? res.status,
+        }),
+      );
+    }
 
-    // ❗ will ONLY fire if fetch itself fails (DNS, offline, CORS)
-    catch: (error) => {
-      if (error instanceof ApiError) {
-        return error;
-      }
-
-      if (error instanceof Error) {
-        return new ApiError({
-          message: error.message,
+    return body as T;
+  }).pipe(
+    Effect.catchAllDefect((error) =>
+      Effect.fail(
+        new ApiError({
+          message: error instanceof Error ? error.message : "Network error",
           code: "NETWORK_ERROR",
-          cause: error,
-        });
-      }
-
-      return new ApiError({
-        message: "Unknown error",
-        code: "NETWORK_ERROR",
-        cause: error,
-      });
-    },
-  });
+        }),
+      ),
+    ),
+  );

@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 import {
   Card,
@@ -69,7 +68,6 @@ export default function LoginPage() {
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
             Enter your credentials to access your account
-            {JSON.stringify(authState)}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -115,7 +113,9 @@ export default function LoginPage() {
                 )}
               />
               {authState.error && (
-                <p className="text-red-600">{authState.error.message}</p>
+                <p className="text-red-600 border border-red-600 px-4 text-sm py-2 rounded-md">
+                  {authState.error.message}
+                </p>
               )}
               <Button
                 type="submit"
