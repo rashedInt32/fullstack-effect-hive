@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -23,11 +23,14 @@ import { authAtom, signupAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { SignUpSchema, SignupType } from "@/app/signup/types";
+import { useRouter } from "next/navigation";
 
 export default function SignupPage() {
   const authState = useAtomValue(authAtom);
   const signup = useAtomSet(signupAtom);
   const initializeAuth = useAtomSet(initializeAuthAtom);
+
+  const router = useRouter();
 
   const form = useForm<SignupType>({
     resolver: effectTsResolver(SignUpSchema),
@@ -49,11 +52,19 @@ export default function SignupPage() {
         message: "Password does not match",
       });
     }
+
     signup(data);
   };
 
+  if (authState.isAuthenticated) {
+    router.push("/chat");
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+    <div
+      className="min-h-screen flex items-center justify-center 
+      bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4"
+    >
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>

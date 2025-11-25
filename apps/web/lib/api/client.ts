@@ -46,6 +46,10 @@ export const apiClient = {
       }).pipe(
         Effect.tap((data) => Effect.sync(() => tokenStorage.set(data.token))),
       ),
+    token: () =>
+      apiFetchWithAuth<User>(`/auth/token`, {
+        method: "GET",
+      }),
   },
   user: {
     profile: () => apiFetchWithAuth<User>("/user/profile", { method: "GET" }),

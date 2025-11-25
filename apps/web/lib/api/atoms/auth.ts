@@ -19,6 +19,24 @@ const initialState: AuthState = {
   isAuthenticated: false,
 };
 
+const mapAuthError = (ctx: Atom.WriteContext<AuthState>) =>
+  Effect.catchAll((error) => {
+    return Effect.sync(() =>
+      ctx.set(authAtom, {
+        user: null,
+        isAuthenticated: false,
+        loading: false,
+        error:
+          error instanceof ApiError
+            ? error
+            : new ApiError({
+                message: "Unknown error",
+                code: "UNKNOWN_ERROR",
+              }),
+      }),
+    );
+  });
+
 export const authAtom = Atom.make<AuthState>(initialState);
 
 export const initializeAuthAtom = Atom.writable(
@@ -26,6 +44,23 @@ export const initializeAuthAtom = Atom.writable(
   (ctx, _?: void) => {
     if (typeof window !== "undefined") {
       const hasToken = tokenStorage.hasToken();
+      const token = tokenStorage.get();
+      if (ctx.get(authAtom).user === null) {
+        return Effect.runPromise(
+          apiClient.user.profile().pipe(
+            Effect.tap((response) =>
+              Effect.sync(() =>
+                ctx.set(authAtom, {
+                  ...ctx.get(authAtom),
+                  user: response,
+                  isAuthenticated: true,
+                }),
+              ),
+            ),
+            mapAuthError(ctx),
+          ),
+        );
+      }
       if (hasToken) {
         ctx.set(authAtom, {
           ...ctx.get(authAtom),
@@ -58,23 +93,7 @@ export const loginAtom = Atom.writable(
             });
           }),
         ),
-        Effect.catchAll((error) => {
-          console.log("Login error caught:", error);
-          return Effect.sync(() =>
-            ctx.set(authAtom, {
-              user: null,
-              isAuthenticated: false,
-              loading: false,
-              error:
-                error instanceof ApiError
-                  ? error
-                  : new ApiError({
-                      message: "Unknown error",
-                      code: "UNKNOWN_ERROR",
-                    }),
-            }),
-          );
-        }),
+        mapAuthError(ctx),
       ),
     );
   },
@@ -105,21 +124,7 @@ export const signupAtom = Atom.writable(
             });
           }),
         ),
-        Effect.catchAll((error) =>
-          Effect.sync(() =>
-            ctx.set(authAtom, {
-              ...ctx.get(authAtom),
-              loading: false,
-              error:
-                error instanceof ApiError
-                  ? error
-                  : new ApiError({
-                      message: "Unknown Error",
-                      code: "UNKNOWN_ERROR",
-                    }),
-            }),
-          ),
-        ),
+        mapAuthError(ctx),
       ),
     );
   },

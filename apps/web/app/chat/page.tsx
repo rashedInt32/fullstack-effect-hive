@@ -15,7 +15,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Hash, Send, Menu, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
+import { authAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
+import { clampBigDecimal } from "effect/Schema";
 
 const channels = [
   { id: 1, name: "general", unread: 0 },
@@ -74,6 +77,16 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [newChannelName, setNewChannelName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const authState = useAtomValue(authAtom);
+  const initializeAuth = useAtomSet(initializeAuthAtom);
+  const initializeAuthValue = useAtomValue(initializeAuthAtom);
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  console.log(authState, initializeAuthValue);
 
   return (
     <div className="h-screen flex bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -188,7 +201,9 @@ export default function ChatPage() {
                 <AvatarFallback>YO</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">Your Name</div>
+                <div className="text-sm font-medium truncate">
+                  {authState.user?.username}
+                </div>
                 <div className="text-xs text-muted-foreground">Online</div>
               </div>
             </div>
