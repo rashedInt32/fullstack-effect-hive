@@ -4,7 +4,6 @@ import {
   handleLogin,
   handleProfile,
   handleSignup,
-  handleToken,
   UserApiGroup,
 } from "./routes/userRoute";
 import { Layer } from "effect";
@@ -40,10 +39,7 @@ export const AuthApiGroupLive = HttpApiBuilder.group(
   RootApi,
   "auth",
   (handlers) =>
-    handlers
-      .handle("login", handleLogin)
-      .handle("signup", handleSignup)
-      .handle("token", handleToken),
+    handlers.handle("login", handleLogin).handle("signup", handleSignup),
 );
 
 export const UserApiGroupLive = HttpApiBuilder.group(

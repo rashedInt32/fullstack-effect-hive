@@ -45,8 +45,8 @@ export const initializeAuthAtom = Atom.writable(
     if (typeof window !== "undefined") {
       const hasToken = tokenStorage.hasToken();
       const token = tokenStorage.get();
-      if (ctx.get(authAtom).user === null) {
-        return Effect.runPromise(
+      if (ctx.get(authAtom).user === null && token !== null) {
+        Effect.runPromise(
           apiClient.user.profile().pipe(
             Effect.tap((response) =>
               Effect.sync(() =>

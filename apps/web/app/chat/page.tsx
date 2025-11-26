@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { authAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
 import { clampBigDecimal } from "effect/Schema";
+import { useRouter } from "next/navigation";
 
 const channels = [
   { id: 1, name: "general", unread: 0 },
@@ -77,12 +78,16 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [newChannelName, setNewChannelName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const router = useRouter();
 
   const authState = useAtomValue(authAtom);
   const initializeAuth = useAtomSet(initializeAuthAtom);
   const initializeAuthValue = useAtomValue(initializeAuthAtom);
 
   useEffect(() => {
+    if (authState.user === null) {
+      router.push("/login");
+    }
     initializeAuth();
   }, [initializeAuth]);
 
