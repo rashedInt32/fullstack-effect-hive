@@ -245,6 +245,56 @@ export const createDirectMessageAtom = Atom.writable(
   },
 );
 
+export const createRoomAtom = Atom.writable(
+  (get) => get(chatAtom),
+  (ctx, name: string) => {
+    const auth = ctx.get(authAtom);
+
+    if (!auth.isAuthenticated || !auth.user) {
+      return;
+    }
+
+    Effect.runPromise(
+      apiClient.rooms
+        .create({
+          name,
+          type: "channel",
+          created_by: auth.user.id,
+        })
+        .pipe(
+          Effect.tap((room) =>
+            Effect.sync(() => {
+              const currentState = ctx.get(chatAtom);
+              ctx.set(chatAtom, {
+                ...currentState,
+                rooms: [
+                  ...currentState.rooms,
+                  {
+                    ...room,
+                    member_count: 1,
+                    user_role: "owner" as const,
+                  },
+                ],
+                activeRoomId: room.id,
+              });
+            }),
+          ),
+          Effect.catchAll((error) =>
+            Effect.sync(() => {
+              ctx.set(chatAtom, {
+                ...ctx.get(chatAtom),
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to create room",
+              });
+            }),
+          ),
+        ),
+    );
+  },
+);
+
 export const disconnectWebSocketAtom = Atom.writable(
   (get) => get(chatAtom),
   (ctx) => {

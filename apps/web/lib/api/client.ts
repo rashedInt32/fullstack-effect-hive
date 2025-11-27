@@ -59,7 +59,7 @@ export const apiClient = {
     create: (data: RoomCreate) =>
       apiFetchWithAuth<Room>("/rooms/create", {
         method: "POST",
-        body: JSON.stringify({ data }),
+        body: JSON.stringify(data),
       }),
 
     getById: (id: string) =>

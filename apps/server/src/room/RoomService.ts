@@ -24,7 +24,7 @@ export interface RoomService {
   create: (
     name: string,
     type: "channel" | "dm",
-    createdBy: string,
+    created_by: string,
     description?: string,
   ) => Effect.Effect<Room, RoomServiceError>;
   findById: (id: string) => Effect.Effect<Room, RoomServiceError>;
