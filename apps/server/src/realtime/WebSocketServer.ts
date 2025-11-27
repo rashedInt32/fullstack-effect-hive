@@ -3,7 +3,16 @@ import {
   WSClientMessageSchema,
   WSServerMessage,
 } from "@hive/shared";
-import { Console, Effect, Fiber, Ref, Runtime, Schema, Stream } from "effect";
+import {
+  Console,
+  Effect,
+  Fiber,
+  Ref,
+  Runtime,
+  Schema,
+  Scope,
+  Stream,
+} from "effect";
 import { WebSocket, WebSocketServer as WSServer } from "ws";
 import { JwtService } from "../jwt/JwtService";
 import { MessageService } from "../message/MessageService";
@@ -107,12 +116,16 @@ const startEventStream = (ws: WebSocket, state: Ref.Ref<ConnectionState>) =>
     }
 
     const roomIds = Array.from(currentState.subscribedRooms);
-    const eventStream = yield* bus.subscribeToRooms(roomIds);
 
-    const fiber = yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
-      sendMessage(ws, {
-        type: "event",
-        event,
+    const fiber = yield* Effect.scoped(
+      Effect.gen(function* () {
+        const eventStream = yield* bus.subscribeToRooms(roomIds);
+        return yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
+          sendMessage(ws, {
+            type: "event",
+            event,
+          }),
+        );
       }),
     ).pipe(Effect.fork);
 
@@ -400,7 +413,7 @@ const handleConnection = (
 
     ws.on("message", (data: Buffer) => {
       const program = handleClientMessage(ws, state, data.toString());
-      Runtime.runFork(runtime);
+      Effect.runFork(program.pipe(Effect.provide(runtime)));
     });
 
     ws.on("close", () => {

@@ -1,6 +1,6 @@
 import { HttpApiBuilder } from "@effect/platform";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { Layer, Console, Effect } from "effect";
+import { Layer, Console, Effect, Scope } from "effect";
 import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
 import { JwtServiceLive } from "./jwt/JwtService";
