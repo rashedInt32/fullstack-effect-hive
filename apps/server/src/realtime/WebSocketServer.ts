@@ -3,16 +3,7 @@ import {
   WSClientMessageSchema,
   WSServerMessage,
 } from "@hive/shared";
-import {
-  Console,
-  Effect,
-  Fiber,
-  Ref,
-  Runtime,
-  Schema,
-  Scope,
-  Stream,
-} from "effect";
+import { Console, Effect, Fiber, Ref, Runtime, Schema, Stream } from "effect";
 import { WebSocket, WebSocketServer as WSServer } from "ws";
 import { JwtService } from "../jwt/JwtService";
 import { MessageService } from "../message/MessageService";
