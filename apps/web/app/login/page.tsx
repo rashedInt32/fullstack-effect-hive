@@ -46,6 +46,12 @@ export default function LoginPage() {
     initializeAuth();
   }, [initializeAuth]);
 
+  useEffect(() => {
+    if (authState.isAuthenticated) {
+      router.push("/chat");
+    }
+  }, [authState.isAuthenticated, router]);
+
   const form = useForm<LoginType>({
     resolver: effectTsResolver(LoginSchema),
     defaultValues: {
@@ -57,10 +63,6 @@ export default function LoginPage() {
   const handleSubmit = (data: LoginType) => {
     setLogin(data);
   };
-
-  if (authState.isAuthenticated) {
-    router.push("/chat");
-  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <Card className="w-full max-w-md">

@@ -46,6 +46,12 @@ export default function SignupPage() {
     initializeAuth();
   }, [initializeAuth]);
 
+  useEffect(() => {
+    if (authState.isAuthenticated) {
+      router.push("/chat");
+    }
+  }, [authState.isAuthenticated, router]);
+
   const handleSubmit = (data: SignupType) => {
     if (data.password !== data.confirmPassword) {
       return form.setError("confirmPassword", {
@@ -55,10 +61,6 @@ export default function SignupPage() {
 
     signup(data);
   };
-
-  if (authState.isAuthenticated) {
-    router.push("/chat");
-  }
 
   return (
     <div
