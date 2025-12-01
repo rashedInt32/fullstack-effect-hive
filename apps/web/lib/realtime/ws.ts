@@ -50,11 +50,18 @@ export class WebSocketClient {
 
   connect(): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
+      console.log("[WebSocketClient.connect] Called");
+
       if (this.connectionFiber) {
+        console.warn("[WebSocketClient.connect] Already connected");
         yield* Effect.logWarning("WebSocket already connected");
+        if (this.statusQueue && this.state) {
+          yield* Queue.offer(this.statusQueue, this.state.status);
+        }
         return;
       }
 
+      console.log("[WebSocketClient.connect] Creating queues");
       const eventQueue = yield* Queue.unbounded<RoomEvent>();
       const messageQueue = yield* Queue.unbounded<WSClientMessage>();
       const statusQueue = yield* Queue.unbounded<ConnectionStatus>();
@@ -63,13 +70,16 @@ export class WebSocketClient {
       this.messageQueue = messageQueue;
       this.statusQueue = statusQueue;
 
+      console.log("[WebSocketClient.connect] Creating connection effect");
       const connectionEffect = this.createConnection(
         eventQueue,
         messageQueue,
         statusQueue,
       );
 
+      console.log("[WebSocketClient.connect] Forking connection");
       this.connectionFiber = yield* Effect.fork(connectionEffect);
+      console.log("[WebSocketClient.connect] Connection forked successfully");
     });
   }
 
@@ -113,6 +123,11 @@ export class WebSocketClient {
     roomId: string,
     content: string,
   ): Effect.Effect<void, never, never> {
+    console.log("[WebSocketClient] sendChatMessage:", {
+      roomId,
+      content,
+      status: this.state?.status,
+    });
     return this.sendMessage({ type: "message.send", roomId, content });
   }
 
@@ -144,9 +159,11 @@ export class WebSocketClient {
   ): Effect.Effect<void, never, never> {
     return Effect.gen(this, function* () {
       if (!this.messageQueue) {
+        console.warn("[WebSocketClient] Message queue not initialized");
         yield* Effect.logWarning("Message queue not initialized");
         return;
       }
+      console.log("[WebSocketClient] Queueing message:", message);
       yield* Queue.offer(this.messageQueue, message);
     });
   }
@@ -358,7 +375,13 @@ export class WebSocketClient {
       Stream.tap((message) =>
         Effect.sync(() => {
           if (ws.readyState === WebSocket.OPEN) {
+            console.log("[WebSocketClient] Sending message via WS:", message);
             ws.send(JSON.stringify(message));
+          } else {
+            console.warn(
+              "[WebSocketClient] WebSocket not open, readyState:",
+              ws.readyState,
+            );
           }
         }),
       ),

@@ -41,19 +41,30 @@ export const initializeChatAtom = Atom.writable(
     const auth = ctx.get(authAtom);
 
     if (!auth.isAuthenticated || !auth.user) {
+      console.log("[initializeChatAtom] Not authenticated, skipping");
       return;
     }
 
+    console.log(
+      "[initializeChatAtom] Starting initialization for user:",
+      auth.user.username,
+    );
+
     const wsClient = getWebSocketClient();
 
-    Effect.runFork(
+    console.log("[initializeChatAtom] About to call wsClient.connect()");
+
+    Effect.runPromise(
       Effect.gen(function* () {
+        console.log("[initializeChatAtom] Inside Effect.gen - connecting...");
         yield* wsClient.connect();
+        console.log("[initializeChatAtom] WebSocket connected!");
 
         const statusStream = wsClient.getStatusStream();
         yield* Effect.fork(
           Stream.runForEach(statusStream, (status) =>
             Effect.sync(() => {
+              console.log("[initializeChatAtom] WS Status changed:", status);
               ctx.set(chatAtom, {
                 ...ctx.get(chatAtom),
                 wsStatus: status,
@@ -68,13 +79,25 @@ export const initializeChatAtom = Atom.writable(
             handleRealtimeEvent(ctx, event),
           ),
         );
-      }),
+
+        console.log("[initializeChatAtom] WebSocket streams configured");
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            console.error(
+              "[initializeChatAtom] WebSocket connection failed:",
+              error,
+            );
+          }),
+        ),
+      ),
     );
 
     Effect.runPromise(
       apiClient.rooms.listByUser(auth.user.id).pipe(
         Effect.tap((rooms) =>
           Effect.sync(() => {
+            console.log("[initializeChatAtom] Loaded rooms:", rooms.length);
             ctx.set(chatAtom, {
               ...ctx.get(chatAtom),
               rooms,
@@ -84,6 +107,7 @@ export const initializeChatAtom = Atom.writable(
         ),
         Effect.catchAll((error) =>
           Effect.sync(() => {
+            console.error("[initializeChatAtom] Failed to load rooms:", error);
             ctx.set(chatAtom, {
               ...ctx.get(chatAtom),
               error:
@@ -169,8 +193,15 @@ export const sendMessageAtom = Atom.writable(
     const state = ctx.get(chatAtom);
 
     if (!state.activeRoomId) {
+      console.log("[sendMessageAtom] No active room");
       return;
     }
+
+    console.log("[sendMessageAtom] Sending message:", {
+      roomId: state.activeRoomId,
+      content,
+      wsStatus: state.wsStatus,
+    });
 
     const wsClient = getWebSocketClient();
     Effect.runFork(wsClient.sendChatMessage(state.activeRoomId, content));
@@ -314,6 +345,7 @@ function handleRealtimeEvent(
   event: RoomEvent,
 ): Effect.Effect<void, never, never> {
   return Effect.sync(() => {
+    console.log("[handleRealtimeEvent] Received event:", event);
     const state = ctx.get(chatAtom);
     const auth = ctx.get(authAtom);
 

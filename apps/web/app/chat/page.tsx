@@ -14,8 +14,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Hash, Send, Menu, Plus, MessageSquare } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  Hash,
+  Send,
+  Menu,
+  Plus,
+  MessageSquare,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { authAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
 import {
@@ -33,6 +41,7 @@ export default function ChatPage() {
   const [newChannelName, setNewChannelName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
+  const chatInitializedRef = useRef(false);
   const router = useRouter();
 
   const authState = useAtomValue(authAtom);
@@ -46,9 +55,28 @@ export default function ChatPage() {
   const createRoom = useAtomSet(createRoomAtom);
 
   useEffect(() => {
-    initializeAuth(undefined);
-    initializeChat(undefined);
-  }, [initializeAuth, initializeChat, authState.user, router]);
+    if (authState.user === null) {
+      router.push("/login");
+      return;
+    }
+
+    if (!authState.isAuthenticated) {
+      initializeAuth(undefined);
+      return;
+    }
+
+    if (!chatInitializedRef.current) {
+      console.log("[ChatPage] Initializing chat (first time)");
+      chatInitializedRef.current = true;
+      initializeChat(undefined);
+    }
+  }, [
+    initializeAuth,
+    initializeChat,
+    authState.user,
+    authState.isAuthenticated,
+    router,
+  ]);
 
   const activeRoom = chatState.rooms.find(
     (r) => r.id === chatState.activeRoomId,
@@ -60,8 +88,23 @@ export default function ChatPage() {
   const channels = chatState.rooms.filter((r) => r.type === "channel");
   const directMessages = chatState.rooms.filter((r) => r.type === "dm");
 
+  const activeTypingUsers = chatState.activeRoomId
+    ? Object.values(
+        chatState.typingIndicators[chatState.activeRoomId] || {},
+      ).filter((user) => user.expiresAt > Date.now())
+    : [];
+
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
+
+    console.log(
+      "[handleSendMessage] Sending:",
+      messageInput,
+      "to room:",
+      chatState.activeRoomId,
+    );
+    console.log("[handleSendMessage] WS Status:", chatState.wsStatus);
+
     sendMessage(messageInput);
     setMessageInput("");
     sendTyping(false);
@@ -89,6 +132,37 @@ export default function ChatPage() {
       .map((n) => n[0])
       .join("")
       .toUpperCase();
+  };
+
+  const getConnectionStatusColor = () => {
+    switch (chatState.wsStatus) {
+      case "authenticated":
+        return "text-green-500";
+      case "connecting":
+      case "authenticating":
+        return "text-yellow-500";
+      case "error":
+        return "text-red-500";
+      case "disconnected":
+      default:
+        return "text-gray-500";
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    switch (chatState.wsStatus) {
+      case "authenticated":
+        return "Connected";
+      case "connecting":
+        return "Connecting...";
+      case "authenticating":
+        return "Authenticating...";
+      case "error":
+        return "Connection error";
+      case "disconnected":
+      default:
+        return "Disconnected";
+    }
   };
 
   return (
@@ -226,6 +300,14 @@ export default function ChatPage() {
               <h1 className="font-semibold">{activeRoom.name}</h1>
             </>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            <div
+              className={`flex items-center gap-1.5 text-xs ${getConnectionStatusColor()}`}
+            >
+              <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
+              <span>{getConnectionStatusText()}</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -263,6 +345,15 @@ export default function ChatPage() {
         </div>
 
         <div className="p-4 border-t border-slate-800">
+          {activeTypingUsers.length > 0 && (
+            <div className="mb-2 text-xs text-muted-foreground italic px-1">
+              {activeTypingUsers.length === 1
+                ? `${activeTypingUsers[0]?.username} is typing...`
+                : activeTypingUsers.length === 2
+                  ? `${activeTypingUsers[0]?.username} and ${activeTypingUsers[1]?.username} are typing...`
+                  : `${activeTypingUsers.length} people are typing...`}
+            </div>
+          )}
           <div className="flex gap-2">
             <Input
               value={messageInput}
