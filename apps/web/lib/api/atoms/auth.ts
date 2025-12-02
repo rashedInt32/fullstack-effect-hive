@@ -10,6 +10,7 @@ type AuthState = {
   loading: boolean;
   error: ApiError | null;
   isAuthenticated: boolean;
+  initialized: boolean;
 };
 
 const initialState: AuthState = {
@@ -17,6 +18,7 @@ const initialState: AuthState = {
   loading: false,
   error: null,
   isAuthenticated: false,
+  initialized: false,
 };
 
 const mapAuthError = (ctx: Atom.WriteContext<AuthState>) =>
@@ -33,6 +35,7 @@ const mapAuthError = (ctx: Atom.WriteContext<AuthState>) =>
                 message: "Unknown error",
                 code: "UNKNOWN_ERROR",
               }),
+        initialized: true,
       }),
     );
   });
@@ -42,9 +45,16 @@ export const authAtom = Atom.make<AuthState>(initialState);
 export const initializeAuthAtom = Atom.writable(
   (get) => get(authAtom),
   (ctx, _?: void) => {
+    ctx.set(authAtom, {
+      ...ctx.get(authAtom),
+      loading: true,
+      error: null,
+    });
+
     if (typeof window !== "undefined") {
       const hasToken = tokenStorage.hasToken();
       const token = tokenStorage.get();
+
       if (ctx.get(authAtom).user === null && token !== null) {
         Effect.runPromise(
           apiClient.user.profile().pipe(
@@ -53,18 +63,19 @@ export const initializeAuthAtom = Atom.writable(
                 ctx.set(authAtom, {
                   ...ctx.get(authAtom),
                   user: response,
+                  loading: false,
                   isAuthenticated: true,
+                  initialized: true,
                 }),
               ),
             ),
             mapAuthError(ctx),
           ),
         );
-      }
-      if (hasToken) {
+      } else {
         ctx.set(authAtom, {
-          ...ctx.get(authAtom),
-          isAuthenticated: true,
+          ...initialState,
+          initialized: true,
         });
       }
     }
@@ -90,6 +101,7 @@ export const loginAtom = Atom.writable(
               loading: false,
               isAuthenticated: true,
               error: null,
+              initialized: true,
             });
           }),
         ),
@@ -121,6 +133,7 @@ export const signupAtom = Atom.writable(
               loading: false,
               isAuthenticated: true,
               error: null,
+              initialized: true,
             });
           }),
         ),
@@ -134,6 +147,6 @@ export const logoutAtom = Atom.writable(
   (get) => get(authAtom),
   (ctx) => {
     tokenStorage.clear();
-    ctx.set(authAtom, initialState);
+    ctx.set(authAtom, { ...initialState, initialized: true });
   },
 );

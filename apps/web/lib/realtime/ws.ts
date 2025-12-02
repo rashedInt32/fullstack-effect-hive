@@ -9,8 +9,10 @@ import {
   Schedule,
   pipe,
   Data,
+  Schema,
 } from "effect";
 import type { WSServerMessage, WSClientMessage, RoomEvent } from "@hive/shared";
+import { RoomEventSchema } from "@hive/shared";
 import { tokenStorage } from "../api/storage";
 
 export type ConnectionStatus =
@@ -45,6 +47,7 @@ export class WebSocketClient {
   private eventQueue: Queue.Queue<RoomEvent> | null = null;
   private messageQueue: Queue.Queue<WSClientMessage> | null = null;
   private statusQueue: Queue.Queue<ConnectionStatus> | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
 
   constructor(private readonly url: string) {}
 
@@ -93,6 +96,11 @@ export class WebSocketClient {
       if (this.state?.ws) {
         this.state.ws.close();
         this.state = null;
+      }
+
+      if (this.pingInterval) {
+        clearInterval(this.pingInterval);
+        this.pingInterval = null;
       }
 
       this.eventQueue = null;
@@ -182,6 +190,10 @@ export class WebSocketClient {
       ),
       Effect.catchAll((error) =>
         Effect.gen(this, function* () {
+          console.log(
+            "[WebSocketClient] Connection failed, offering error:",
+            error.message,
+          );
           yield* Queue.offer(statusQueue, "error");
           yield* Effect.logError(
             `WebSocket connection failed: ${error.message}`,
@@ -198,6 +210,7 @@ export class WebSocketClient {
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
       yield* Queue.offer(statusQueue, "connecting");
+      console.log("[WebSocketClient] Offered status: connecting");
 
       const ws = yield* this.createWebSocket();
       const authenticated = yield* Deferred.make<void, AuthenticationError>();
@@ -230,10 +243,12 @@ export class WebSocketClient {
         const ws = new WebSocket(this.url);
 
         ws.onopen = () => {
+          console.log("[WebSocketClient] WebSocket opened");
           resume(Effect.succeed(ws));
         };
 
         ws.onerror = () => {
+          console.log("[WebSocketClient] WebSocket error");
           resume(
             Effect.fail(
               new WebSocketError({ message: "WebSocket connection failed" }),
@@ -260,6 +275,7 @@ export class WebSocketClient {
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
       yield* Queue.offer(statusQueue, "authenticating");
+      console.log("[WebSocketClient] Offered status: authenticating");
       yield* this.authenticate(ws);
 
       yield* pipe(
@@ -268,6 +284,13 @@ export class WebSocketClient {
           (error) => new WebSocketError({ message: error.message }),
         ),
       );
+
+      // Start ping interval for connection health
+      this.pingInterval = setInterval(() => {
+        if (this.state?.ws.readyState === WebSocket.OPEN) {
+          this.state.ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 30000);
 
       yield* Effect.async<void, WebSocketError>((resume) => {
         ws.onmessage = (event) => {
@@ -335,12 +358,21 @@ export class WebSocketClient {
             this.state.username = message.username;
           }
           yield* Queue.offer(statusQueue, "authenticated");
+          console.log("[WebSocketClient] Offered status: authenticated");
           yield* Deferred.succeed(authenticated, undefined);
           yield* this.resubscribeToRooms();
           break;
 
         case "event":
-          yield* Queue.offer(eventQueue, message.event);
+          console.log("[WebSocketClient] Received event:", message.event);
+          const validatedEvent = yield* Schema.decodeUnknown(RoomEventSchema)(
+            message.event,
+          ).pipe(
+            Effect.catchAll(() =>
+              Effect.fail(new Error("Invalid event format")),
+            ),
+          );
+          yield* Queue.offer(eventQueue, validatedEvent);
           break;
 
         case "subscribed":

@@ -28,12 +28,17 @@ export const WSTypingMessageSchema = Schema.Struct({
   isTyping: Schema.Boolean,
 });
 
+export const WSPingMessageSchema = Schema.Struct({
+  type: Schema.Literal("ping"),
+});
+
 export const WSClientMessageSchema = Schema.Union(
   WSAuthMessageSchema,
   WSSubscribeRoomMessageSchema,
   WSUnsubscribeRoomMessageSchema,
   WSMessageSendSchema,
   WSTypingMessageSchema,
+  WSPingMessageSchema,
 );
 
 export const WSAuthenticatedMessageSchema = Schema.Struct({
@@ -63,10 +68,15 @@ export const WSUnsubscribedMessageSchema = Schema.Struct({
   roomId: Schema.String,
 });
 
+export const WSPongMessageSchema = Schema.Struct({
+  type: Schema.Literal("pong"),
+});
+
 export const WSServerMessageSchema = Schema.Union(
   WSAuthenticatedMessageSchema,
   WSErrorMessageSchema,
   WSEventMessageSchema,
   WSSubscribedMessageSchema,
   WSUnsubscribedMessageSchema,
+  WSPongMessageSchema,
 );

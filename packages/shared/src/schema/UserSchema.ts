@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { DateTimeSchema } from "./common";
+import { DateTimeSchema } from "./Common";
 
 export const UserCreateSchema = Schema.Struct({
   username: Schema.String.pipe(

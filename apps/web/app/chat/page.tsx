@@ -55,28 +55,45 @@ export default function ChatPage() {
   const createRoom = useAtomSet(createRoomAtom);
 
   useEffect(() => {
-    if (authState.user === null) {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  useEffect(() => {
+    if (
+      authState.initialized &&
+      !authState.loading &&
+      !authState.isAuthenticated &&
+      authState.user === null
+    ) {
       router.push("/login");
-      return;
     }
+  }, [
+    authState.loading,
+    authState.isAuthenticated,
+    authState.user,
+    authState.initialized,
+    router,
+  ]);
 
-    if (!authState.isAuthenticated) {
-      initializeAuth(undefined);
-      return;
-    }
-
-    if (!chatInitializedRef.current) {
+  useEffect(() => {
+    if (
+      !chatInitializedRef.current &&
+      authState.initialized &&
+      authState.isAuthenticated &&
+      authState.user
+    ) {
       console.log("[ChatPage] Initializing chat (first time)");
       chatInitializedRef.current = true;
       initializeChat(undefined);
     }
   }, [
-    initializeAuth,
     initializeChat,
-    authState.user,
+    authState.initialized,
     authState.isAuthenticated,
-    router,
+    authState.user,
   ]);
+
+  console.log(chatState);
 
   const activeRoom = chatState.rooms.find(
     (r) => r.id === chatState.activeRoomId,

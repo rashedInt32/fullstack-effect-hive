@@ -4,7 +4,7 @@ import { RoomSchema } from "./RoomSchema";
 
 const BaseEventSchema = Schema.Struct({
   roomId: Schema.String,
-  timestamp: Schema.DateFromString,
+  timestamp: Schema.Date,
 });
 
 export const MessageCreatedEventSchema = Schema.Struct({
@@ -19,7 +19,7 @@ export const MessageUpdatedEventSchema = Schema.Struct({
   messageId: Schema.String,
   content: Schema.String,
   userId: Schema.String,
-  updatedAt: Schema.DateFromString,
+  updatedAt: Schema.Date,
 });
 
 export const MessageDeletedEventSchema = Schema.Struct({
@@ -30,7 +30,7 @@ export const MessageDeletedEventSchema = Schema.Struct({
 });
 
 export const RoomCreatedEventSchema = Schema.Struct({
-  timestamp: Schema.DateFromString,
+  timestamp: Schema.Date,
   type: Schema.Literal("room.created"),
   room: RoomSchema,
 });

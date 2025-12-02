@@ -303,9 +303,7 @@ const handleMessageSend = (
         ),
       );
 
-    yield* Console.log(
-      `Message sent to room ${roomId}: ${content.slice(0, 50)}...`,
-    );
+    yield* Console.log(`Published message.created event for room ${roomId}`);
   });
 
 const handleTyping = (
@@ -384,6 +382,10 @@ const handleClientMessage = (
         yield* handleTyping(ws, state, message.roomId, message.isTyping);
         break;
 
+      case "ping":
+        yield* sendMessage(ws, { type: "pong" });
+        break;
+
       default:
         yield* sendError(ws, "UNKNOWN_MESSAGE_TYPE", "Unknown message type");
     }
@@ -442,6 +444,7 @@ export const createWebSocketServer = (
     const wss = new WSServer({ server, path: "/ws" });
 
     wss.on("connection", (ws: WebSocket) => {
+      console.log("[WebSocketServer] New connection established");
       const program = handleConnection(ws, runtime);
       Effect.runFork(program.pipe(Effect.provide(runtime)));
     });

@@ -5,6 +5,8 @@ import {
   WSErrorMessageSchema,
   WSEventMessageSchema,
   WSMessageSendSchema,
+  WSPingMessageSchema,
+  WSPongMessageSchema,
   WSServerMessageSchema,
   WSSubscribedMessageSchema,
   WSTypingMessageSchema,
@@ -27,6 +29,9 @@ export type WSUnsubscribeMessage = Schema.Schema.Type<
 
 export type WSMessageSend = Schema.Schema.Type<typeof WSMessageSendSchema>;
 export type WSTypingMessage = Schema.Schema.Type<typeof WSTypingMessageSchema>;
+
+export type WSPingMessage = Schema.Schema.Type<typeof WSPingMessageSchema>;
+export type WSPongMessage = Schema.Schema.Type<typeof WSPongMessageSchema>;
 
 export type WSAuthenticatedMessage = Schema.Schema.Type<
   typeof WSAuthenticatedMessageSchema

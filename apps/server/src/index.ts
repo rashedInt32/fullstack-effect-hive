@@ -13,7 +13,7 @@ import { MessageServiceLive } from "./message/MessageService";
 import { RealTimeBusLive } from "./realtime/RealtimeBus";
 import { createWebSocketServer } from "./realtime/WebSocketServer";
 
-const httpServer = createServer();
+const server = createServer();
 
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(
@@ -36,12 +36,12 @@ const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(DbLive),
   Layer.provide(AppConfigLive),
   Layer.tap(() => Console.log("Server listenning at port ")),
-  Layer.provide(NodeHttpServer.layer(createServer, { port: 3002 })),
+  Layer.provide(NodeHttpServer.layer(() => server, { port: 3002 })),
 );
 
 const WebSocketServerLive = Layer.effectDiscard(
   Effect.gen(function* () {
-    yield* createWebSocketServer(httpServer);
+    yield* createWebSocketServer(server);
   }),
 ).pipe(
   Layer.provide(UserServiceLive),
