@@ -83,6 +83,10 @@ export class WebSocketClient {
       console.log("[WebSocketClient.connect] Forking connection");
       this.connectionFiber = yield* Effect.fork(connectionEffect);
       console.log("[WebSocketClient.connect] Connection forked successfully");
+
+      // Give the fiber a chance to start running
+      yield* Effect.sleep("10 millis");
+      console.log("[WebSocketClient.connect] Post-fork delay complete");
     });
   }
 
@@ -209,12 +213,22 @@ export class WebSocketClient {
     statusQueue: Queue.Queue<ConnectionStatus>,
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
+      console.log("[WebSocketClient.connectWithRetry] START");
       yield* Queue.offer(statusQueue, "connecting");
       console.log("[WebSocketClient] Offered status: connecting");
 
+      console.log("[WebSocketClient.connectWithRetry] Creating WebSocket...");
       const ws = yield* this.createWebSocket();
-      const authenticated = yield* Deferred.make<void, AuthenticationError>();
+      console.log(
+        "[WebSocketClient.connectWithRetry] WebSocket created, readyState:",
+        ws.readyState,
+      );
 
+      console.log("[WebSocketClient.connectWithRetry] Creating Deferred...");
+      const authenticated = yield* Deferred.make<void, AuthenticationError>();
+      console.log("[WebSocketClient.connectWithRetry] Deferred created");
+
+      console.log("[WebSocketClient.connectWithRetry] Setting state...");
       this.state = {
         ws,
         status: "connecting",
@@ -222,7 +236,9 @@ export class WebSocketClient {
         username: null,
         subscribedRooms: new Set(),
       };
+      console.log("[WebSocketClient.connectWithRetry] State set");
 
+      console.log("[WebSocketClient.connectWithRetry] Creating handlers...");
       const messageHandler = this.setupMessageHandler(
         ws,
         eventQueue,
@@ -230,10 +246,15 @@ export class WebSocketClient {
         authenticated,
       );
       const messageSender = this.setupMessageSender(ws, messageQueue);
+      console.log("[WebSocketClient.connectWithRetry] Handlers created");
 
+      console.log("[WebSocketClient.connectWithRetry] Running handlers...");
       yield* Effect.all([messageHandler, messageSender], {
         concurrency: "unbounded",
       });
+      console.log(
+        "[WebSocketClient.connectWithRetry] Handlers completed (should never reach here)",
+      );
     });
   }
 
@@ -274,9 +295,50 @@ export class WebSocketClient {
     authenticated: Deferred.Deferred<void, AuthenticationError>,
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
+      console.log(
+        "[WebSocketClient.setupMessageHandler] START, ws.readyState:",
+        ws.readyState,
+      );
+
+      ws.onmessage = (event) => {
+        console.log("[WebSocketClient] Message received:", event.data);
+        Effect.runFork(
+          pipe(
+            this.handleServerMessage(
+              event.data,
+              eventQueue,
+              statusQueue,
+              authenticated,
+            ),
+            Effect.catchAll((error) =>
+              Effect.logError(
+                `Message handling error: ${error instanceof Error ? error.message : "Unknown error"}`,
+              ),
+            ),
+          ),
+        );
+      };
+
+      console.log(
+        "[WebSocketClient.setupMessageHandler] Message handler set up",
+      );
+
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.log(
+          "[WebSocketClient.setupMessageHandler] WebSocket not OPEN yet, readyState:",
+          ws.readyState,
+        );
+        yield* Effect.fail(
+          new WebSocketError({
+            message: "WebSocket not open for authentication",
+          }),
+        );
+      }
+
       yield* Queue.offer(statusQueue, "authenticating");
       console.log("[WebSocketClient] Offered status: authenticating");
       yield* this.authenticate(ws);
+      console.log("[WebSocketClient] Auth message sent");
 
       yield* pipe(
         Deferred.await(authenticated),
@@ -293,24 +355,6 @@ export class WebSocketClient {
       }, 30000);
 
       yield* Effect.async<void, WebSocketError>((resume) => {
-        ws.onmessage = (event) => {
-          Effect.runFork(
-            pipe(
-              this.handleServerMessage(
-                event.data,
-                eventQueue,
-                statusQueue,
-                authenticated,
-              ),
-              Effect.catchAll((error) =>
-                Effect.logError(
-                  `Message handling error: ${error instanceof Error ? error.message : "Unknown error"}`,
-                ),
-              ),
-            ),
-          );
-        };
-
         ws.onerror = () => {
           resume(
             Effect.fail(new WebSocketError({ message: "WebSocket error" })),
@@ -331,13 +375,68 @@ export class WebSocketClient {
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
       const token = tokenStorage.get();
+      console.log(
+        "[WebSocketClient.authenticate] Token from storage:",
+        token ? `${token.substring(0, 20)}...` : "null",
+      );
+
       if (!token) {
+        console.error(
+          "[WebSocketClient.authenticate] ❌ NO TOKEN FOUND IN LOCALSTORAGE!",
+        );
+        console.error(
+          "[WebSocketClient.authenticate] User needs to log in again",
+        );
         return yield* Effect.fail(
-          new WebSocketError({ message: "No authentication token found" }),
+          new WebSocketError({
+            message: "No authentication token found - please log in",
+          }),
         );
       }
 
-      ws.send(JSON.stringify({ type: "auth", token }));
+      console.log(
+        "[WebSocketClient.authenticate] Preparing to send auth message",
+      );
+      console.log(
+        "[WebSocketClient.authenticate] ws.readyState:",
+        ws.readyState,
+        "(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)",
+      );
+
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.error(
+          "[WebSocketClient.authenticate] ❌ WebSocket not in OPEN state! Cannot send auth message",
+        );
+        return yield* Effect.fail(
+          new WebSocketError({
+            message: `WebSocket not open (readyState: ${ws.readyState})`,
+          }),
+        );
+      }
+
+      const authMessage = JSON.stringify({ type: "auth", token });
+      console.log(
+        "[WebSocketClient.authenticate] Sending auth message (length:",
+        authMessage.length,
+        ")",
+      );
+
+      try {
+        ws.send(authMessage);
+        console.log(
+          "[WebSocketClient.authenticate] ✅ Auth message sent successfully!",
+        );
+      } catch (error) {
+        console.error(
+          "[WebSocketClient.authenticate] ❌ Failed to send auth message:",
+          error,
+        );
+        return yield* Effect.fail(
+          new WebSocketError({
+            message: `Failed to send auth: ${error instanceof Error ? error.message : "Unknown error"}`,
+          }),
+        );
+      }
     });
   }
 
@@ -436,8 +535,7 @@ let wsClient: WebSocketClient | null = null;
 
 export function getWebSocketClient(): WebSocketClient {
   if (!wsClient) {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-    const wsUrl = apiUrl.replace(/^http/, "ws") + "/ws";
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3003/ws";
     wsClient = new WebSocketClient(wsUrl);
   }
   return wsClient;

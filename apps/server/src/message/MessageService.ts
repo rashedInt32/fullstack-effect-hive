@@ -3,7 +3,7 @@ import {
   MessageServiceErrorType,
   MessageWithUser,
 } from "@hive/shared";
-import { Context, Data, Effect, Layer } from "effect";
+import { Console, Context, Data, Effect, Layer } from "effect";
 import { Db } from "../config/Db";
 import {
   decodeCreate,
@@ -75,6 +75,8 @@ export const MessageServiceLive = Layer.effect(
             yield* sqlSafe(sql`INSERT INTO messages (room_id, user_id, content) 
             VALUES (${input.room_id}, ${userId}, ${input.content})
             RETURNING id, room_id, user_id, content, created_at, updated_at`);
+
+          yield* Console.log(row);
 
           return yield* toMessage(row[0]);
         }),

@@ -53,6 +53,7 @@ export const initializeChatAtom = Atom.writable(
     const wsClient = getWebSocketClient();
 
     console.log("[initializeChatAtom] About to call wsClient.connect()");
+    console.log("[initializeChatAtom] wsClient instance:", wsClient);
 
     Effect.runPromise(
       Effect.gen(function* () {

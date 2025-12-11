@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, isError = false) {
+            const p = document.createElement('p');
+            p.textContent = new Date().toISOString() + ' - ' + message;
+            p.style.color = isError ? 'red' : 'green';
+            output.appendChild(p);
+            console.log(message);
+        }
+        
+        log('Connecting to ws://localhost:3002/ws ...');
+        const ws = new WebSocket('ws://localhost:3002/ws');
+        
+        ws.onopen = () => {
+            log('✓ WebSocket opened successfully!');
+            log('Sending ping...');
+            ws.send(JSON.stringify({ type: 'ping' }));
+        };
+        
+        ws.onmessage = (event) => {
+            log('✓ Received: ' + event.data);
+        };
+        
+        ws.onerror = (error) => {
+            log('✗ WebSocket error occurred', true);
+            console.error('Error details:', error);
+        };
+        
+        ws.onclose = (event) => {
+            log('Connection closed. Code: ' + event.code + ', Reason: ' + event.reason);
+        };
+    </script>
+</body>
+</html>

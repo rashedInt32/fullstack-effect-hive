@@ -58,12 +58,19 @@ const handleAuthentication = (
   token: string,
 ) =>
   Effect.gen(function* () {
+    yield* Console.log(
+      `[handleAuthentication] Starting auth with token: ${token.substring(0, 20)}...`,
+    );
     const jwtService = yield* JwtService;
     const userService = yield* UserService;
 
     const payload = yield* jwtService.verify(token).pipe(
       Effect.catchAll((error) =>
         Effect.gen(function* () {
+          yield* Console.error(
+            "[handleAuthentication] Token verification failed:",
+            error,
+          );
           yield* sendError(ws, "AUTH_FAILED", "Invalid token");
           return yield* Effect.fail(error);
         }),
@@ -85,6 +92,10 @@ const handleAuthentication = (
       username: user.username,
       authenticated: true,
     }));
+
+    yield* Console.log(
+      `[handleAuthentication] Sending authenticated message to client`,
+    );
 
     yield* sendMessage(ws, {
       type: "authenticated",
@@ -245,34 +256,57 @@ const handleMessageSend = (
   content: string,
 ) =>
   Effect.gen(function* () {
+    yield* Console.log(
+      `[handleMessageSend] START - roomId: ${roomId}, content: "${content}"`,
+    );
+
     const currentState = yield* Ref.get(state);
+    yield* Console.log(`[handleMessageSend] Current state:`, {
+      userId: currentState.userId,
+      username: currentState.username,
+      authenticated: currentState.authenticated,
+    });
 
     if (!currentState.authenticated || !currentState.userId) {
+      yield* Console.error("[handleMessageSend] User not authenticated");
       yield* sendError(ws, "NOT_AUTHENTICATED", "Please authenticate first");
       return;
     }
 
+    yield* Console.log("[handleMessageSend] Getting services...");
     const messageService = yield* MessageService;
     const userService = yield* UserService;
     const bus = yield* RealTimeBus;
+    yield* Console.log("[handleMessageSend] Services obtained");
+
+    yield* Console.log(
+      `[handleMessageSend] Calling messageService.create with userId: ${currentState.userId}, roomId: ${roomId}`,
+    );
 
     // create the message in DB (or service)
     const message = yield* messageService
       .create(currentState.userId, roomId, content)
       .pipe(
+        Effect.tap(() =>
+          Console.log("[handleMessageSend] messageService.create SUCCESS"),
+        ),
         Effect.catchAll((error) =>
           Effect.gen(function* () {
+            yield* Console.error(
+              "[handleMessageSend] messageService.create FAILED:",
+              error,
+            );
             yield* sendError(
               ws,
               "MESSAGE_SEND_FAILED",
               "Failed to send message",
             );
-            // log the error for debugging
-            yield* Console.error("messageService.create error:", error);
             return yield* Effect.fail(error);
           }),
         ),
       );
+
+    yield* Console.log("[handleMessageSend] Message created:", message);
 
     // publish the new message to RealTimeBus so subscribers get it
     // (this is the crucial missing line from the original)
@@ -405,16 +439,17 @@ const handleConnection = (
     const state = yield* Ref.make(createInitialState());
 
     ws.on("message", (data: Buffer) => {
+      console.log("[WebSocketServer] Received message:", data.toString());
       const program = handleClientMessage(ws, state, data.toString());
       Effect.runFork(program.pipe(Effect.provide(runtime)));
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
       const cleanup = Effect.gen(function* () {
         yield* stopEventStream(state);
         const finalState = yield* Ref.get(state);
         yield* Console.log(
-          `WebSocket closed: ${finalState.username || "unauthenticated"}`,
+          `WebSocket closed: ${finalState.username || "unauthenticated"} (code: ${code}, reason: ${reason.toString()})`,
         );
       });
 
@@ -441,12 +476,31 @@ export const createWebSocketServer = (
       JwtService | UserService | RoomService | MessageService | RealTimeBus
     >();
 
-    const wss = new WSServer({ server, path: "/ws" });
+    const wss = new WSServer({
+      noServer: true,
+      verifyClient: (info: any) => {
+        console.log(
+          "[WebSocketServer] Verifying client connection:",
+          info.origin,
+        );
+        return true;
+      },
+    });
 
-    wss.on("connection", (ws: WebSocket) => {
+    wss.on("connection", (ws: WebSocket, req) => {
       console.log("[WebSocketServer] New connection established");
+      console.log("[WebSocketServer] Connection URL:", req.url);
+      console.log("[WebSocketServer] Headers:", req.headers);
       const program = handleConnection(ws, runtime);
       Effect.runFork(program.pipe(Effect.provide(runtime)));
+    });
+
+    wss.on("error", (error) => {
+      console.error("[WebSocketServer] Server error:", error);
+    });
+
+    wss.on("headers", (_headers, req) => {
+      console.log("[WebSocketServer] Sending headers for:", req.url);
     });
 
     yield* Console.log("WebSocket server initialized on path /ws");

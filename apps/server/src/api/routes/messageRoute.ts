@@ -11,7 +11,7 @@ import {
   MessageServiceErrorSchema,
   MessageWithUserSchema,
 } from "@hive/shared";
-import { Effect, Layer, Schema } from "effect";
+import { Console, Effect, Layer, Schema } from "effect";
 import { MessageService } from "../../message/MessageService";
 import { AuthErrorSchema, requireAuth } from "../../auth/AuthMiddleware";
 
@@ -58,6 +58,7 @@ export const MessageApiGroup = HttpApiGroup.make("messages")
 
 export const handleMessageCreate = ({ payload }: { payload: MessageCreate }) =>
   Effect.gen(function* () {
+    yield* Console.log("Check");
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
     const result = yield* messageService.create(
@@ -65,6 +66,7 @@ export const handleMessageCreate = ({ payload }: { payload: MessageCreate }) =>
       payload.room_id,
       payload.content,
     );
+    yield* Console.log("Check", result);
     return result;
   });
 

@@ -76,6 +76,13 @@ export default function ChatPage() {
   ]);
 
   useEffect(() => {
+    console.log("[ChatPage] useEffect check:", {
+      chatInitialized: chatInitializedRef.current,
+      initialized: authState.initialized,
+      isAuthenticated: authState.isAuthenticated,
+      hasUser: !!authState.user,
+    });
+
     if (
       !chatInitializedRef.current &&
       authState.initialized &&
