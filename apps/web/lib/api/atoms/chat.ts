@@ -57,10 +57,11 @@ export const initializeChatAtom = Atom.writable(
 
     Effect.runPromise(
       Effect.gen(function* () {
-        console.log("[initializeChatAtom] Inside Effect.gen - connecting...");
-        yield* wsClient.connect();
-        console.log("[initializeChatAtom] WebSocket connected!");
+        console.log(
+          "[initializeChatAtom] Inside Effect.gen - setup streams...",
+        );
 
+        // Subscribe to status updates BEFORE connecting to ensure we catch the initial state/changes
         const statusStream = wsClient.getStatusStream();
         yield* Effect.fork(
           Stream.runForEach(statusStream, (status) =>
@@ -81,7 +82,9 @@ export const initializeChatAtom = Atom.writable(
           ),
         );
 
-        console.log("[initializeChatAtom] WebSocket streams configured");
+        console.log("[initializeChatAtom] Connecting to WebSocket...");
+        yield* wsClient.connect();
+        console.log("[initializeChatAtom] WebSocket connect called");
       }).pipe(
         Effect.catchAll((error) =>
           Effect.sync(() => {

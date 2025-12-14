@@ -1,0 +1,205 @@
+
+> dev
+> turbo run dev
+
+turbo 2.5.5
+
+• Packages in scope: @hive/eslint-config, @hive/server, @hive/shared, @hive/typescript-config, @hive/web
+• Running dev in 5 packages
+• Remote caching disabled
+@hive/shared:dev: cache bypass, force executing 02c89a6e96ab494c
+@hive/server:dev: cache bypass, force executing 127256f385aae242
+@hive/web:dev: cache bypass, force executing aa899d1778a891f2
+@hive/server:dev: 
+@hive/server:dev: > @hive/server@1.0.0 dev /Users/rashed/Documents/codes/fullstack-effect-hive/apps/server
+@hive/server:dev: > nodemon --exec node -r @swc-node/register src/index.ts
+@hive/server:dev: 
+@hive/shared:dev: 
+@hive/shared:dev: > @hive/shared@1.0.0 dev /Users/rashed/Documents/codes/fullstack-effect-hive/packages/shared
+@hive/shared:dev: > tsc --watch
+@hive/shared:dev: 
+@hive/web:dev: 
+@hive/web:dev: > @hive/web@0.1.0 dev /Users/rashed/Documents/codes/fullstack-effect-hive/apps/web
+@hive/web:dev: > next dev --turbopack
+@hive/web:dev: 
+@hive/server:dev: [33m[nodemon] 3.1.10[39m
+@hive/server:dev: [33m[nodemon] to restart at any time, enter `rs`[39m
+@hive/server:dev: [33m[nodemon] watching path(s): *.*[39m
+@hive/server:dev: [33m[nodemon] watching extensions: ts,json[39m
+@hive/server:dev: [32m[nodemon] starting `node -r @swc-node/register src/index.ts`[39m
+@hive/shared:dev: [2J[3J[H10:12:32 PM - Starting compilation in watch mode...
+@hive/shared:dev: 
+@hive/web:dev:    ▲ Next.js 15.5.2 (Turbopack)
+@hive/web:dev:    - Local:        http://localhost:3000
+@hive/web:dev:    - Network:      http://192.168.1.50:3000
+@hive/web:dev:    - Environments: .env
+@hive/web:dev: 
+@hive/web:dev:  ✓ Starting...
+@hive/shared:dev: 
+@hive/shared:dev: 10:12:32 PM - Found 0 errors. Watching for file changes.
+@hive/web:dev:  ✓ Ready in 673ms
+@hive/server:dev: WebSocket server initialized on path /ws
+@hive/server:dev: WebSocket server configured on port 3003
+@hive/server:dev: HTTP API server listening on port 3002
+@hive/server:dev: WebSocket server listening on port 3003
+@hive/server:dev: [WebSocketServer] Verifying client connection: undefined
+@hive/server:dev: [WebSocketServer] Sending headers for: /ws
+@hive/server:dev: [WebSocketServer] New connection established
+@hive/server:dev: [WebSocketServer] Connection URL: /ws
+@hive/server:dev: [WebSocketServer] Headers: {
+@hive/server:dev:   host: 'localhost:3003',
+@hive/server:dev:   connection: 'upgrade',
+@hive/server:dev:   upgrade: 'websocket',
+@hive/server:dev:   'sec-websocket-key': 'HWvf+Xvh/Eo+Fm33tZfy/w==',
+@hive/server:dev:   'sec-websocket-version': '13',
+@hive/server:dev:   'sec-websocket-extensions': 'permessage-deflate; client_max_window_bits',
+@hive/server:dev:   accept: '*/*',
+@hive/server:dev:   'accept-language': '*',
+@hive/server:dev:   'sec-fetch-mode': 'websocket',
+@hive/server:dev:   'user-agent': 'node',
+@hive/server:dev:   pragma: 'no-cache',
+@hive/server:dev:   'cache-control': 'no-cache',
+@hive/server:dev:   'accept-encoding': 'gzip, deflate'
+@hive/server:dev: }
+@hive/server:dev: New WebSocket connection established
+@hive/server:dev: [WebSocketServer] Received message: {"type":"auth","token":"eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6bnVsbCwiaWQiOiJlZTYyNTIyZi05OWEyLTQ1ODAtYjk5ZS0wODdkYjkyNGY1NGUiLCJpYXQiOjE3NjU1NTU5NjksImV4cCI6MTc2NjE2MDc2OX0.7NiZVlgk_TUt6fWoOJkbXFGBIcxqQ81tqlriQabpBmk"}
+@hive/server:dev: [handleAuthentication] Starting auth with token: eyJhbGciOiJIUzI1NiJ9...
+@hive/server:dev: [handleAuthentication] Sending authenticated message to client
+@hive/server:dev: WebSocket authenticated: testuser_1765555969134 (ee62522f-99a2-4580-b99e-087db924f54e)
+@hive/server:dev: WebSocket closed: testuser_1765555969134 (code: 1005, reason: )
+@hive/server:dev: [WebSocketServer] Verifying client connection: undefined
+@hive/server:dev: [WebSocketServer] Sending headers for: /ws
+@hive/server:dev: [WebSocketServer] New connection established
+@hive/server:dev: [WebSocketServer] Connection URL: /ws
+@hive/server:dev: [WebSocketServer] Headers: {
+@hive/server:dev:   host: 'localhost:3003',
+@hive/server:dev:   connection: 'upgrade',
+@hive/server:dev:   upgrade: 'websocket',
+@hive/server:dev:   'sec-websocket-key': 'L3+WGYF6tP+IeOERFWTPwA==',
+@hive/server:dev:   'sec-websocket-version': '13',
+@hive/server:dev:   'sec-websocket-extensions': 'permessage-deflate; client_max_window_bits',
+@hive/server:dev:   accept: '*/*',
+@hive/server:dev:   'accept-language': '*',
+@hive/server:dev:   'sec-fetch-mode': 'websocket',
+@hive/server:dev:   'user-agent': 'node',
+@hive/server:dev:   pragma: 'no-cache',
+@hive/server:dev:   'cache-control': 'no-cache',
+@hive/server:dev:   'accept-encoding': 'gzip, deflate'
+@hive/server:dev: }
+@hive/server:dev: New WebSocket connection established
+@hive/server:dev: [WebSocketServer] Received message: {"type":"auth","token":"eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6bnVsbCwiaWQiOiI4MTA5MGQxMi04ZTYyLTQ5NDctYjQ2OS05MjEyN2MzMDA3NTIiLCJpYXQiOjE3NjU1NTU5OTksImV4cCI6MTc2NjE2MDc5OX0.fjBw4IM_wuRGGuiMaNDWz_dLYbyhdpacDNP1ymzV1kY"}
+@hive/server:dev: [handleAuthentication] Starting auth with token: eyJhbGciOiJIUzI1NiJ9...
+@hive/server:dev: [handleAuthentication] Sending authenticated message to client
+@hive/server:dev: WebSocket authenticated: testuser_1765555998132 (81090d12-8e62-4947-b469-92127c300752)
+@hive/server:dev: [WebSocketServer] Received message: {"type":"ping"}
+@hive/server:dev: WebSocket closed: testuser_1765555998132 (code: 1006, reason: )
+@hive/server:dev: [WebSocketServer] Verifying client connection: undefined
+@hive/server:dev: [WebSocketServer] Sending headers for: /ws
+@hive/server:dev: [WebSocketServer] New connection established
+@hive/server:dev: [WebSocketServer] Connection URL: /ws
+@hive/server:dev: [WebSocketServer] Headers: {
+@hive/server:dev:   host: 'localhost:3003',
+@hive/server:dev:   connection: 'upgrade',
+@hive/server:dev:   upgrade: 'websocket',
+@hive/server:dev:   'sec-websocket-key': '4AmXREHwbqTB+g1gSB7DBQ==',
+@hive/server:dev:   'sec-websocket-version': '13',
+@hive/server:dev:   'sec-websocket-extensions': 'permessage-deflate; client_max_window_bits',
+@hive/server:dev:   accept: '*/*',
+@hive/server:dev:   'accept-language': '*',
+@hive/server:dev:   'sec-fetch-mode': 'websocket',
+@hive/server:dev:   'user-agent': 'node',
+@hive/server:dev:   pragma: 'no-cache',
+@hive/server:dev:   'cache-control': 'no-cache',
+@hive/server:dev:   'accept-encoding': 'gzip, deflate'
+@hive/server:dev: }
+@hive/server:dev: New WebSocket connection established
+@hive/server:dev: [WebSocketServer] Received message: {"type":"auth","token":"eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6bnVsbCwiaWQiOiJiMDU1ZDJhOC0zNDc5LTRiN2MtOWQ1OC1iMDRmY2JlMWIzZDYiLCJpYXQiOjE3NjU1NTY5NDAsImV4cCI6MTc2NjE2MTc0MH0.19nJr0VImfSE1_R921w45CA7qRqae-ZRQ5mbTHy3rrc"}
+@hive/server:dev: [handleAuthentication] Starting auth with token: eyJhbGciOiJIUzI1NiJ9...
+@hive/server:dev: [handleAuthentication] Sending authenticated message to client
+@hive/server:dev: WebSocket authenticated: testuser_1765556935585 (b055d2a8-3479-4b7c-9d58-b04fcbe1b3d6)
+@hive/server:dev: [WebSocketServer] Received message: {"type":"ping"}
+@hive/server:dev: [WebSocketServer] Received message: {"type":"ping"}
+@hive/server:dev: WebSocket closed: testuser_1765556935585 (code: 1006, reason: )
+@hive/server:dev: [32m[nodemon] restarting due to changes...[39m
+@hive/server:dev: [32m[nodemon] starting `node -r @swc-node/register src/index.ts`[39m
+@hive/server:dev: WebSocket server initialized on path /ws
+@hive/server:dev: WebSocket server configured on port 3003
+@hive/server:dev: HTTP API server listening on port 3002
+@hive/server:dev: WebSocket server listening on port 3003
+@hive/server:dev: [WebSocketServer] Verifying client connection: undefined
+@hive/server:dev: [WebSocketServer] Sending headers for: /ws
+@hive/server:dev: [WebSocketServer] New connection established
+@hive/server:dev: [WebSocketServer] Connection URL: /ws
+@hive/server:dev: [WebSocketServer] Headers: {
+@hive/server:dev:   host: 'localhost:3003',
+@hive/server:dev:   connection: 'upgrade',
+@hive/server:dev:   upgrade: 'websocket',
+@hive/server:dev:   'sec-websocket-key': 'l0qeUyv17Xw5nzKL1KRPDA==',
+@hive/server:dev:   'sec-websocket-version': '13',
+@hive/server:dev:   'sec-websocket-extensions': 'permessage-deflate; client_max_window_bits',
+@hive/server:dev:   accept: '*/*',
+@hive/server:dev:   'accept-language': '*',
+@hive/server:dev:   'sec-fetch-mode': 'websocket',
+@hive/server:dev:   'user-agent': 'node',
+@hive/server:dev:   pragma: 'no-cache',
+@hive/server:dev:   'cache-control': 'no-cache',
+@hive/server:dev:   'accept-encoding': 'gzip, deflate'
+@hive/server:dev: }
+@hive/server:dev: New WebSocket connection established
+@hive/server:dev: [WebSocketServer] Received message: {"type":"auth","token":"eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6bnVsbCwiaWQiOiI1NTg1OTAzZC1kYjhiLTQ0NTQtODg3Yy0xMzlmYTIwYjUzNGEiLCJpYXQiOjE3NjU1NTcyMTAsImV4cCI6MTc2NjE2MjAxMH0._AN6v-gmjFg-MvlJEbeHZLqeq4utcYJYlQyJccUhOoM"}
+@hive/server:dev: [handleAuthentication] Starting auth with token: eyJhbGciOiJIUzI1NiJ9...
+@hive/server:dev: [handleAuthentication] Sending authenticated message to client
+@hive/server:dev: WebSocket authenticated: testuser_1765557206675 (5585903d-db8b-4454-887c-139fa20b534a)
+@hive/server:dev: [WebSocketServer] Received message: {"type":"subscribe","roomId":"a9088c37-83c3-4967-bf7f-ba7ca859e053"}
+@hive/server:dev: [WebSocketServer] Received message: {"type":"message.send","roomId":"a9088c37-83c3-4967-bf7f-ba7ca859e053","content":"Hello from verification script!"}
+@hive/server:dev: [handleMessageSend] START - roomId: a9088c37-83c3-4967-bf7f-ba7ca859e053, content: "Hello from verification script!"
+@hive/server:dev: [handleMessageSend] Current state: {
+@hive/server:dev:   userId: '5585903d-db8b-4454-887c-139fa20b534a',
+@hive/server:dev:   username: 'testuser_1765557206675',
+@hive/server:dev:   authenticated: true
+@hive/server:dev: }
+@hive/server:dev: [handleMessageSend] Getting services...
+@hive/server:dev: [handleMessageSend] Services obtained
+@hive/server:dev: [handleMessageSend] Calling messageService.create with userId: 5585903d-db8b-4454-887c-139fa20b534a, roomId: a9088c37-83c3-4967-bf7f-ba7ca859e053
+@hive/server:dev: Event stream started for rooms: a9088c37-83c3-4967-bf7f-ba7ca859e053
+@hive/server:dev: Subscribed to room: a9088c37-83c3-4967-bf7f-ba7ca859e053
+@hive/server:dev: Event stream stopped
+@hive/server:dev: WebSocket closed: testuser_1765557206675 (code: 1005, reason: )
+@hive/server:dev: Result(1) [
+@hive/server:dev:   {
+@hive/server:dev:     id: 'a62193c7-cba6-40d8-b72f-2b93c3e53ff5',
+@hive/server:dev:     room_id: 'a9088c37-83c3-4967-bf7f-ba7ca859e053',
+@hive/server:dev:     user_id: '5585903d-db8b-4454-887c-139fa20b534a',
+@hive/server:dev:     content: 'Hello from verification script!',
+@hive/server:dev:     created_at: 2025-12-12T16:33:40.303Z,
+@hive/server:dev:     updated_at: 2025-12-12T16:33:40.303Z
+@hive/server:dev:   }
+@hive/server:dev: ]
+@hive/server:dev: [handleMessageSend] messageService.create FAILED: MessageServiceError: Message decoding failed
+@hive/server:dev:     at f (/Users/rashed/Documents/codes/fullstack-effect-hive/apps/server/src/message/messageUtils.ts:49:91)
+@hive/server:dev:     at EffectPrimitive.effect_instruction_i0 (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/core.ts:1078:35)
+@hive/server:dev:     at body (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1146:41)
+@hive/server:dev:     at effect_internal_function (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/Utils.ts:779:12)
+@hive/server:dev:     at FiberRuntime.Sync (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1146:31)
+@hive/server:dev:     at f (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1383:53)
+@hive/server:dev:     at Object.context (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/tracer.ts:101:19)
+@hive/server:dev:     at FiberRuntime.runLoop (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1369:34)
+@hive/server:dev:     at FiberRuntime.evaluateEffect (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:935:27)
+@hive/server:dev:     at FiberRuntime.evaluateMessageWhileSuspended (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:903:14) {
+@hive/server:dev:   code: 'INTERNAL_MESSAGE_ERROR',
+@hive/server:dev:   _tag: 'MessageServiceError'
+@hive/server:dev: }
+@hive/server:dev: Error handling client message: MessageServiceError: Message decoding failed
+@hive/server:dev:     at f (/Users/rashed/Documents/codes/fullstack-effect-hive/apps/server/src/message/messageUtils.ts:49:91)
+@hive/server:dev:     at EffectPrimitive.effect_instruction_i0 (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/core.ts:1078:35)
+@hive/server:dev:     at body (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1146:41)
+@hive/server:dev:     at effect_internal_function (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/Utils.ts:779:12)
+@hive/server:dev:     at FiberRuntime.Sync (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1146:31)
+@hive/server:dev:     at f (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1383:53)
+@hive/server:dev:     at Object.context (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/tracer.ts:101:19)
+@hive/server:dev:     at FiberRuntime.runLoop (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:1369:34)
+@hive/server:dev:     at FiberRuntime.evaluateEffect (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:935:27)
+@hive/server:dev:     at FiberRuntime.evaluateMessageWhileSuspended (/Users/rashed/Documents/codes/fullstack-effect-hive/node_modules/.pnpm/effect@3.17.13/node_modules/effect/src/internal/fiberRuntime.ts:903:14) {
+@hive/server:dev:   code: 'INTERNAL_MESSAGE_ERROR',
+@hive/server:dev:   _tag: 'MessageServiceError'
+@hive/server:dev: }

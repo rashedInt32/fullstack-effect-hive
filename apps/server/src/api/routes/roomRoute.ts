@@ -109,11 +109,11 @@ export const RoomApiGroup = HttpApiGroup.make("rooms")
 export const handleCreate = ({ payload }: { payload: RoomCreate }) =>
   Effect.gen(function* () {
     const roomService = yield* RoomService;
-    yield* requireAuth;
+    const user = yield* requireAuth;
     const result = yield* roomService.create(
       payload.name,
       payload.type,
-      payload.created_by,
+      user.id,
       payload.description,
     );
 

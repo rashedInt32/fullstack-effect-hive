@@ -10,6 +10,8 @@ import {
   pipe,
   Data,
   Schema,
+  PubSub,
+  SubscriptionRef,
 } from "effect";
 import type { WSServerMessage, WSClientMessage, RoomEvent } from "@hive/shared";
 import { RoomEventSchema } from "@hive/shared";
@@ -44,12 +46,19 @@ export class WebSocketClient {
   private state: WebSocketState | null = null;
   private connectionFiber: Fiber.RuntimeFiber<void, WebSocketError> | null =
     null;
-  private eventQueue: Queue.Queue<RoomEvent> | null = null;
-  private messageQueue: Queue.Queue<WSClientMessage> | null = null;
-  private statusQueue: Queue.Queue<ConnectionStatus> | null = null;
+  private eventHub: PubSub.PubSub<RoomEvent>;
+  private messageQueue: Queue.Queue<WSClientMessage>;
+  private statusRef: SubscriptionRef.SubscriptionRef<ConnectionStatus>;
   private pingInterval: NodeJS.Timeout | null = null;
 
-  constructor(private readonly url: string) {}
+  constructor(private readonly url: string) {
+    // Initialize Hubs and Queues in constructor so they are always available
+    this.eventHub = Effect.runSync(PubSub.unbounded<RoomEvent>());
+    this.messageQueue = Effect.runSync(Queue.unbounded<WSClientMessage>());
+    this.statusRef = Effect.runSync(
+      SubscriptionRef.make<ConnectionStatus>("disconnected"),
+    );
+  }
 
   connect(): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
@@ -58,27 +67,11 @@ export class WebSocketClient {
       if (this.connectionFiber) {
         console.warn("[WebSocketClient.connect] Already connected");
         yield* Effect.logWarning("WebSocket already connected");
-        if (this.statusQueue && this.state) {
-          yield* Queue.offer(this.statusQueue, this.state.status);
-        }
         return;
       }
 
-      console.log("[WebSocketClient.connect] Creating queues");
-      const eventQueue = yield* Queue.unbounded<RoomEvent>();
-      const messageQueue = yield* Queue.unbounded<WSClientMessage>();
-      const statusQueue = yield* Queue.unbounded<ConnectionStatus>();
-
-      this.eventQueue = eventQueue;
-      this.messageQueue = messageQueue;
-      this.statusQueue = statusQueue;
-
       console.log("[WebSocketClient.connect] Creating connection effect");
-      const connectionEffect = this.createConnection(
-        eventQueue,
-        messageQueue,
-        statusQueue,
-      );
+      const connectionEffect = this.createConnection();
 
       console.log("[WebSocketClient.connect] Forking connection");
       this.connectionFiber = yield* Effect.fork(connectionEffect);
@@ -86,7 +79,6 @@ export class WebSocketClient {
 
       // Give the fiber a chance to start running
       yield* Effect.sleep("10 millis");
-      console.log("[WebSocketClient.connect] Post-fork delay complete");
     });
   }
 
@@ -107,9 +99,7 @@ export class WebSocketClient {
         this.pingInterval = null;
       }
 
-      this.eventQueue = null;
-      this.messageQueue = null;
-      this.statusQueue = null;
+      yield* this.setStatus("disconnected");
     });
   }
 
@@ -135,12 +125,15 @@ export class WebSocketClient {
     roomId: string,
     content: string,
   ): Effect.Effect<void, never, never> {
-    console.log("[WebSocketClient] sendChatMessage:", {
-      roomId,
-      content,
-      status: this.state?.status,
+    return Effect.gen(this, function* () {
+      const currentStatus = yield* SubscriptionRef.get(this.statusRef);
+      console.log("[WebSocketClient] sendChatMessage:", {
+        roomId,
+        content,
+        status: currentStatus,
+      });
+      yield* this.sendMessage({ type: "message.send", roomId, content });
     });
-    return this.sendMessage({ type: "message.send", roomId, content });
   }
 
   sendTyping(
@@ -151,42 +144,47 @@ export class WebSocketClient {
   }
 
   getEventStream(): Stream.Stream<RoomEvent, never, never> {
-    return this.eventQueue ? Stream.fromQueue(this.eventQueue) : Stream.empty;
+    return Stream.fromPubSub(this.eventHub);
   }
 
   getStatusStream(): Stream.Stream<ConnectionStatus, never, never> {
-    return this.statusQueue ? Stream.fromQueue(this.statusQueue) : Stream.empty;
+    return this.statusRef;
   }
 
-  getStatus(): ConnectionStatus {
-    return this.state?.status ?? "disconnected";
+  getStatus(): Effect.Effect<ConnectionStatus> {
+    return SubscriptionRef.get(this.statusRef);
   }
 
-  isAuthenticated(): boolean {
-    return this.state?.status === "authenticated";
+  isAuthenticated(): Effect.Effect<boolean> {
+    return Effect.map(
+      SubscriptionRef.get(this.statusRef),
+      (status) => status === "authenticated",
+    );
+  }
+
+  private setStatus(
+    status: ConnectionStatus,
+  ): Effect.Effect<void, never, never> {
+    return Effect.gen(this, function* () {
+      if (this.state) {
+        this.state.status = status;
+      }
+      yield* SubscriptionRef.set(this.statusRef, status);
+    });
   }
 
   private sendMessage(
     message: WSClientMessage,
   ): Effect.Effect<void, never, never> {
     return Effect.gen(this, function* () {
-      if (!this.messageQueue) {
-        console.warn("[WebSocketClient] Message queue not initialized");
-        yield* Effect.logWarning("Message queue not initialized");
-        return;
-      }
       console.log("[WebSocketClient] Queueing message:", message);
       yield* Queue.offer(this.messageQueue, message);
     });
   }
 
-  private createConnection(
-    eventQueue: Queue.Queue<RoomEvent>,
-    messageQueue: Queue.Queue<WSClientMessage>,
-    statusQueue: Queue.Queue<ConnectionStatus>,
-  ): Effect.Effect<void, WebSocketError, never> {
+  private createConnection(): Effect.Effect<void, WebSocketError, never> {
     return pipe(
-      this.connectWithRetry(eventQueue, messageQueue, statusQueue),
+      this.connectWithRetry(),
       Effect.retry(
         Schedule.exponential("1 second").pipe(
           Schedule.union(Schedule.spaced("10 seconds")),
@@ -198,7 +196,7 @@ export class WebSocketClient {
             "[WebSocketClient] Connection failed, offering error:",
             error.message,
           );
-          yield* Queue.offer(statusQueue, "error");
+          yield* this.setStatus("error");
           yield* Effect.logError(
             `WebSocket connection failed: ${error.message}`,
           );
@@ -207,14 +205,10 @@ export class WebSocketClient {
     );
   }
 
-  private connectWithRetry(
-    eventQueue: Queue.Queue<RoomEvent>,
-    messageQueue: Queue.Queue<WSClientMessage>,
-    statusQueue: Queue.Queue<ConnectionStatus>,
-  ): Effect.Effect<void, WebSocketError, never> {
+  private connectWithRetry(): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
       console.log("[WebSocketClient.connectWithRetry] START");
-      yield* Queue.offer(statusQueue, "connecting");
+      yield* this.setStatus("connecting");
       console.log("[WebSocketClient] Offered status: connecting");
 
       console.log("[WebSocketClient.connectWithRetry] Creating WebSocket...");
@@ -239,13 +233,8 @@ export class WebSocketClient {
       console.log("[WebSocketClient.connectWithRetry] State set");
 
       console.log("[WebSocketClient.connectWithRetry] Creating handlers...");
-      const messageHandler = this.setupMessageHandler(
-        ws,
-        eventQueue,
-        statusQueue,
-        authenticated,
-      );
-      const messageSender = this.setupMessageSender(ws, messageQueue);
+      const messageHandler = this.setupMessageHandler(ws, authenticated);
+      const messageSender = this.setupMessageSender(ws);
       console.log("[WebSocketClient.connectWithRetry] Handlers created");
 
       console.log("[WebSocketClient.connectWithRetry] Running handlers...");
@@ -290,8 +279,6 @@ export class WebSocketClient {
 
   private setupMessageHandler(
     ws: WebSocket,
-    eventQueue: Queue.Queue<RoomEvent>,
-    statusQueue: Queue.Queue<ConnectionStatus>,
     authenticated: Deferred.Deferred<void, AuthenticationError>,
   ): Effect.Effect<void, WebSocketError, never> {
     return Effect.gen(this, function* () {
@@ -304,12 +291,7 @@ export class WebSocketClient {
         console.log("[WebSocketClient] Message received:", event.data);
         Effect.runFork(
           pipe(
-            this.handleServerMessage(
-              event.data,
-              eventQueue,
-              statusQueue,
-              authenticated,
-            ),
+            this.handleServerMessage(event.data, authenticated),
             Effect.catchAll((error) =>
               Effect.logError(
                 `Message handling error: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -335,7 +317,7 @@ export class WebSocketClient {
         );
       }
 
-      yield* Queue.offer(statusQueue, "authenticating");
+      yield* this.setStatus("authenticating");
       console.log("[WebSocketClient] Offered status: authenticating");
       yield* this.authenticate(ws);
       console.log("[WebSocketClient] Auth message sent");
@@ -442,8 +424,6 @@ export class WebSocketClient {
 
   private handleServerMessage(
     data: string,
-    eventQueue: Queue.Queue<RoomEvent>,
-    statusQueue: Queue.Queue<ConnectionStatus>,
     authenticated: Deferred.Deferred<void, AuthenticationError>,
   ): Effect.Effect<void, Error, never> {
     return Effect.gen(this, function* () {
@@ -452,11 +432,10 @@ export class WebSocketClient {
       switch (message.type) {
         case "authenticated":
           if (this.state) {
-            this.state.status = "authenticated";
             this.state.userId = message.userId;
             this.state.username = message.username;
           }
-          yield* Queue.offer(statusQueue, "authenticated");
+          yield* this.setStatus("authenticated");
           console.log("[WebSocketClient] Offered status: authenticated");
           yield* Deferred.succeed(authenticated, undefined);
           yield* this.resubscribeToRooms();
@@ -471,7 +450,7 @@ export class WebSocketClient {
               Effect.fail(new Error("Invalid event format")),
             ),
           );
-          yield* Queue.offer(eventQueue, validatedEvent);
+          yield* PubSub.publish(this.eventHub, validatedEvent);
           break;
 
         case "subscribed":
@@ -497,12 +476,9 @@ export class WebSocketClient {
     });
   }
 
-  private setupMessageSender(
-    ws: WebSocket,
-    messageQueue: Queue.Queue<WSClientMessage>,
-  ): Effect.Effect<void, never, never> {
+  private setupMessageSender(ws: WebSocket): Effect.Effect<void, never, never> {
     return pipe(
-      Stream.fromQueue(messageQueue),
+      Stream.fromQueue(this.messageQueue),
       Stream.tap((message) =>
         Effect.sync(() => {
           if (ws.readyState === WebSocket.OPEN) {

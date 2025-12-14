@@ -170,6 +170,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.1.1(@types/react@19.1.0)
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       eslint:
         specifier: ^9
         version: 9.31.0(jiti@2.5.1)
@@ -185,6 +188,9 @@ importers:
       typescript:
         specifier: ^5
         version: 5.8.3
+      ws:
+        specifier: ^8.18.3
+        version: 8.18.3
 
   packages/eslint-config:
     devDependencies:
