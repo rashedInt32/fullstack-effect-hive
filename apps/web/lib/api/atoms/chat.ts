@@ -62,17 +62,36 @@ export const initializeChatAtom = Atom.writable(
         );
 
         // Subscribe to status updates BEFORE connecting to ensure we catch the initial state/changes
+        console.log(
+          "[initializeChatAtom] Setting up status stream subscription...",
+        );
         const statusStream = wsClient.getStatusStream();
-        yield* Effect.fork(
+        console.log("[initializeChatAtom] Got status stream");
+
+        const statusFiber = yield* Effect.fork(
           Stream.runForEach(statusStream, (status) =>
             Effect.sync(() => {
               console.log("[initializeChatAtom] WS Status changed:", status);
-              ctx.set(chatAtom, {
-                ...ctx.get(chatAtom),
-                wsStatus: status,
-              });
+              try {
+                const currentState = ctx.get(chatAtom);
+                console.log(
+                  "[initializeChatAtom] Current state before update:",
+                  { wsStatus: currentState.wsStatus },
+                );
+                ctx.set(chatAtom, {
+                  ...currentState,
+                  wsStatus: status,
+                });
+                console.log("[initializeChatAtom] State updated to:", status);
+              } catch (e) {
+                console.error("[initializeChatAtom] Error updating state:", e);
+              }
             }),
           ),
+        );
+        console.log(
+          "[initializeChatAtom] Status stream forked, fiber:",
+          statusFiber,
         );
 
         const eventStream = wsClient.getEventStream();
@@ -81,6 +100,44 @@ export const initializeChatAtom = Atom.writable(
             handleRealtimeEvent(ctx, event),
           ),
         );
+
+        // Workaround: Poll status since stream subscription isn't working reliably
+        // IMPORTANT: Fork this BEFORE connect() since connect() blocks forever
+        yield* Effect.fork(
+          Effect.gen(function* () {
+            console.log("[initializeChatAtom] Starting status polling...");
+            let lastStatus = wsClient.getStatus();
+            console.log(`[initializeChatAtom] Initial status: ${lastStatus}`);
+            while (true) {
+              yield* Effect.sleep("100 millis");
+              const currentStatus = wsClient.getStatus();
+              if (currentStatus !== lastStatus) {
+                console.log(
+                  `[initializeChatAtom] Status poll detected change: ${lastStatus} -> ${currentStatus}`,
+                );
+                try {
+                  const currentState = ctx.get(chatAtom);
+                  if (currentState.wsStatus !== currentStatus) {
+                    ctx.set(chatAtom, {
+                      ...currentState,
+                      wsStatus: currentStatus,
+                    });
+                    console.log(
+                      `[initializeChatAtom] Status updated via poll to: ${currentStatus}`,
+                    );
+                  }
+                } catch (e) {
+                  console.error(
+                    "[initializeChatAtom] Error updating status via poll:",
+                    e,
+                  );
+                }
+                lastStatus = currentStatus;
+              }
+            }
+          }),
+        );
+        console.log("[initializeChatAtom] Status polling forked");
 
         console.log("[initializeChatAtom] Connecting to WebSocket...");
         yield* wsClient.connect();
@@ -355,16 +412,35 @@ function handleRealtimeEvent(
 
     switch (event.type) {
       case "message.created": {
+        console.log(
+          "[handleRealtimeEvent] message.created for room:",
+          event.roomId,
+          "message:",
+          event.message,
+        );
         const roomId = event.roomId;
         const existingMessages = state.messagesByRoom[roomId] || [];
+
+        console.log(
+          "[handleRealtimeEvent] Existing messages count:",
+          existingMessages.length,
+        );
+
+        const newMessages = [...existingMessages, event.message];
+        console.log(
+          "[handleRealtimeEvent] New messages count:",
+          newMessages.length,
+        );
 
         ctx.set(chatAtom, {
           ...state,
           messagesByRoom: {
             ...state.messagesByRoom,
-            [roomId]: [...existingMessages, event.message],
+            [roomId]: newMessages,
           },
         });
+
+        console.log("[handleRealtimeEvent] State updated with new message");
         break;
       }
 

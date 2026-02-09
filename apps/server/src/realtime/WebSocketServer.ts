@@ -409,7 +409,31 @@ const handleClientMessage = (
         break;
 
       case "message.send":
-        yield* handleMessageSend(ws, state, message.roomId, message.content);
+        yield* Console.log(
+          `[handleClientMessage] Received message.send for room ${message.roomId}`,
+        );
+        yield* handleMessageSend(
+          ws,
+          state,
+          message.roomId,
+          message.content,
+        ).pipe(
+          Effect.catchAll((error) =>
+            Effect.gen(function* () {
+              yield* Console.error(
+                "[handleClientMessage] message.send failed:",
+                error,
+              );
+              yield* sendError(
+                ws,
+                "MESSAGE_SEND_FAILED",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to send message",
+              );
+            }),
+          ),
+        );
         break;
 
       case "typing":
@@ -425,7 +449,14 @@ const handleClientMessage = (
     }
   }).pipe(
     Effect.catchAll((error) =>
-      Console.error("Error handling client message:", error),
+      Effect.gen(function* () {
+        yield* Console.error("[handleClientMessage] Unhandled error:", error);
+        yield* sendError(
+          ws,
+          "INTERNAL_ERROR",
+          error instanceof Error ? error.message : "Internal server error",
+        );
+      }),
     ),
   );
 

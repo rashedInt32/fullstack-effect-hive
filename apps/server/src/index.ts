@@ -4,7 +4,7 @@ import { Layer, Console, Effect } from "effect";
 import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
 import { JwtServiceLive } from "./jwt/JwtService";
-import { AppConfigLive } from "./config/Config";
+import { AppConfig, AppConfigLive } from "./config/Config";
 import { AuthServiceLive } from "./auth/AuthService";
 import { RoomServiceLive } from "./room/RoomService";
 import { RootApiLive } from "./api";
@@ -52,10 +52,12 @@ const WebSocketServerLive = Layer.scopedDiscard(
   Layer.provide(AppConfigLive),
 );
 
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
+
 const ServerLive = HttpApiBuilder.serve().pipe(
   Layer.provide(
     HttpApiBuilder.middlewareCors({
-      allowedOrigins: ["http://localhost:3000"],
+      allowedOrigins: [corsOrigin],
       allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
       credentials: true,

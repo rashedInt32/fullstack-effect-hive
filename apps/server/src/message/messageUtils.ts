@@ -13,19 +13,85 @@ export const decodeMessageWithUser = Schema.decodeUnknown(
   MessageWithUserSchema,
 );
 
-export const toMessage = (sqlQuery: unknown) =>
-  decodeMessage(sqlQuery).pipe(
+export const toMessage = (sqlQuery: unknown) => {
+  // Create a copy to avoid mutating the original SQL result
+  const originalData = sqlQuery as Record<string, unknown>;
+  const data: Record<string, unknown> = { ...originalData };
+
+  console.log("[toMessage] Original data:", data);
+  console.log(
+    "[toMessage] created_at type:",
+    typeof data.created_at,
+    "instanceof Date:",
+    data.created_at instanceof Date,
+  );
+  console.log(
+    "[toMessage] updated_at type:",
+    typeof data.updated_at,
+    "instanceof Date:",
+    data.updated_at instanceof Date,
+  );
+
+  // The DateTimeSchema uses DateFromString which expects STRING input
+  // So we need to convert Date objects to ISO strings, or keep strings as-is
+  if (data && data.created_at instanceof Date) {
+    data.created_at = data.created_at.toISOString();
+    console.log(
+      "[toMessage] Converted created_at Date to ISO string:",
+      data.created_at,
+    );
+  }
+  // If it's already a string, leave it as-is for the schema to parse
+
+  if (data && data.updated_at instanceof Date) {
+    data.updated_at = data.updated_at.toISOString();
+    console.log(
+      "[toMessage] Converted updated_at Date to ISO string:",
+      data.updated_at,
+    );
+  }
+  // If it's already a string, leave it as-is for the schema to parse
+
+  console.log("[toMessage] Data after conversion:", data);
+
+  return decodeMessage(data).pipe(
+    Effect.tapError((err) =>
+      Effect.sync(() => {
+        console.error("[toMessage] Decoding failed:", err);
+        console.error("[toMessage] Data that failed:", data);
+      }),
+    ),
     Effect.mapError(
       (err) =>
         new MessageServiceError({
           code: "INTERNAL_MESSAGE_ERROR",
-          message: "Message decoding failed",
+          message: `Message decoding failed: ${JSON.stringify(err)}`,
         }),
     ),
   );
+};
 
-export const toMessageWithUser = (sqlQuery: unknown) =>
-  decodeMessageWithUser(sqlQuery).pipe(
+export const toMessageWithUser = (sqlQuery: unknown) => {
+  // Create a copy to avoid mutating the original SQL result
+  const originalData = sqlQuery as Record<string, unknown>;
+  const data: Record<string, unknown> = { ...originalData };
+
+  // The DateTimeSchema uses DateFromString which expects STRING input
+  // So we need to convert Date objects to ISO strings
+  if (data && data.created_at instanceof Date) {
+    data.created_at = data.created_at.toISOString();
+  }
+  if (data && data.updated_at instanceof Date) {
+    data.updated_at = data.updated_at.toISOString();
+  }
+
+  return decodeMessageWithUser(data).pipe(
+    Effect.tapError((err) =>
+      Effect.sync(() => {
+        console.error("[toMessageWithUser] Decoding failed:", err);
+        console.error("[toMessageWithUser] Data that failed:", data);
+      }),
+    ),
     Effect.mapError(
       () =>
         new MessageServiceError({
@@ -34,6 +100,7 @@ export const toMessageWithUser = (sqlQuery: unknown) =>
         }),
     ),
   );
+};
 
 export const mapSqlError = (err: any): MessageServiceError => {
   const inner = err?.cause ?? err;
