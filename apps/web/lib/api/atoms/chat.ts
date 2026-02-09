@@ -1,5 +1,5 @@
 import { Atom } from "@effect-atom/atom-react";
-import { Effect, Stream } from "effect";
+import { Effect, Stream, Fiber } from "effect";
 import type { RoomWithMembers, MessageWithUser, RoomEvent } from "@hive/shared";
 import { apiClient } from "@/lib/api/client";
 import { getWebSocketClient, type ConnectionStatus } from "@/lib/realtime/ws";
@@ -55,104 +55,87 @@ export const initializeChatAtom = Atom.writable(
     console.log("[initializeChatAtom] About to call wsClient.connect()");
     console.log("[initializeChatAtom] wsClient instance:", wsClient);
 
+    // Simplified initialization without complex error handling that causes type issues
     Effect.runPromise(
       Effect.gen(function* () {
         console.log(
           "[initializeChatAtom] Inside Effect.gen - setup streams...",
         );
 
-        // Subscribe to status updates BEFORE connecting to ensure we catch the initial state/changes
-        console.log(
-          "[initializeChatAtom] Setting up status stream subscription...",
-        );
-        const statusStream = wsClient.getStatusStream();
-        console.log("[initializeChatAtom] Got status stream");
+        // Read current status first (avoids React StrictMode issues with stream creation)
+        const currentStatus = wsClient.getStatus();
+        console.log(`[initializeChatAtom] Current WS status: ${currentStatus}`);
+        ctx.set(chatAtom, {
+          ...ctx.get(chatAtom),
+          wsStatus: currentStatus,
+        });
 
-        const statusFiber = yield* Effect.fork(
-          Stream.runForEach(statusStream, (status) =>
-            Effect.sync(() => {
-              console.log("[initializeChatAtom] WS Status changed:", status);
-              try {
-                const currentState = ctx.get(chatAtom);
-                console.log(
-                  "[initializeChatAtom] Current state before update:",
-                  { wsStatus: currentState.wsStatus },
-                );
+        // Polling-based status updates (more reliable than streams with React StrictMode)
+        console.log("[initializeChatAtom] Starting status polling...");
+        let lastStatus = currentStatus;
+        const pollStatus = () => {
+          const currentStatus = wsClient.getStatus();
+          if (currentStatus !== lastStatus) {
+            console.log(
+              `[initializeChatAtom] Status changed: ${lastStatus} -> ${currentStatus}`,
+            );
+            try {
+              const currentState = ctx.get(chatAtom);
+              if (currentState.wsStatus !== currentStatus) {
                 ctx.set(chatAtom, {
                   ...currentState,
-                  wsStatus: status,
+                  wsStatus: currentStatus,
                 });
-                console.log("[initializeChatAtom] State updated to:", status);
-              } catch (e) {
-                console.error("[initializeChatAtom] Error updating state:", e);
-              }
-            }),
-          ),
-        );
-        console.log(
-          "[initializeChatAtom] Status stream forked, fiber:",
-          statusFiber,
-        );
-
-        const eventStream = wsClient.getEventStream();
-        yield* Effect.fork(
-          Stream.runForEach(eventStream, (event) =>
-            handleRealtimeEvent(ctx, event),
-          ),
-        );
-
-        // Workaround: Poll status since stream subscription isn't working reliably
-        // IMPORTANT: Fork this BEFORE connect() since connect() blocks forever
-        yield* Effect.fork(
-          Effect.gen(function* () {
-            console.log("[initializeChatAtom] Starting status polling...");
-            let lastStatus = wsClient.getStatus();
-            console.log(`[initializeChatAtom] Initial status: ${lastStatus}`);
-            while (true) {
-              yield* Effect.sleep("100 millis");
-              const currentStatus = wsClient.getStatus();
-              if (currentStatus !== lastStatus) {
                 console.log(
-                  `[initializeChatAtom] Status poll detected change: ${lastStatus} -> ${currentStatus}`,
+                  "[initializeChatAtom] State updated to:",
+                  currentStatus,
                 );
-                try {
-                  const currentState = ctx.get(chatAtom);
-                  if (currentState.wsStatus !== currentStatus) {
-                    ctx.set(chatAtom, {
-                      ...currentState,
-                      wsStatus: currentStatus,
-                    });
-                    console.log(
-                      `[initializeChatAtom] Status updated via poll to: ${currentStatus}`,
-                    );
-                  }
-                } catch (e) {
-                  console.error(
-                    "[initializeChatAtom] Error updating status via poll:",
-                    e,
-                  );
-                }
-                lastStatus = currentStatus;
               }
+            } catch (e) {
+              console.error("[initializeChatAtom] Error updating state:", e);
             }
-          }),
+            lastStatus = currentStatus;
+          }
+        };
+
+        // Poll every 100ms
+        const intervalId = setInterval(pollStatus, 100);
+
+        // Cleanup interval when connection closes
+        window.addEventListener("beforeunload", () => {
+          clearInterval(intervalId);
+        });
+
+        // Subscribe to events (use polling for events too since streams are unreliable)
+        console.log(
+          "[initializeChatAtom] Setting up event stream subscription...",
         );
-        console.log("[initializeChatAtom] Status polling forked");
+        const eventStream = wsClient.getEventStream();
+        const eventFiber = yield* Effect.fork(
+          Stream.runForEach(eventStream, (event) =>
+            Effect.sync(() => {
+              console.log("[initializeChatAtom] Received event:", event);
+              handleRealtimeEvent(ctx, event);
+            }),
+          ).pipe(
+            Effect.catchAll((error) =>
+              Effect.sync(() => {
+                console.error(
+                  "[initializeChatAtom] Event stream error:",
+                  error,
+                );
+              }),
+            ),
+          ),
+        );
 
         console.log("[initializeChatAtom] Connecting to WebSocket...");
         yield* wsClient.connect();
         console.log("[initializeChatAtom] WebSocket connect called");
-      }).pipe(
-        Effect.catchAll((error) =>
-          Effect.sync(() => {
-            console.error(
-              "[initializeChatAtom] WebSocket connection failed:",
-              error,
-            );
-          }),
-        ),
-      ),
-    );
+      }),
+    ).catch((error) => {
+      console.error("[initializeChatAtom] WebSocket connection failed:", error);
+    });
 
     Effect.runPromise(
       apiClient.rooms.listByUser(auth.user.id).pipe(

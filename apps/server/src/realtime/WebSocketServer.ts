@@ -110,47 +110,75 @@ const handleAuthentication = (
 
 const startEventStream = (ws: WebSocket, state: Ref.Ref<ConnectionState>) =>
   Effect.gen(function* () {
+    console.log(`[startEventStream] Called`);
     const bus = yield* RealTimeBus;
     const currentState = yield* Ref.get(state);
 
+    console.log(
+      `[startEventStream] Called with ${currentState.subscribedRooms.size} subscribed rooms`,
+    );
+
     if (currentState.subscribedRooms.size === 0) {
+      console.log(`[startEventStream] No subscribed rooms, skipping`);
       return;
     }
 
     const roomIds = Array.from(currentState.subscribedRooms);
+    console.log(`[startEventStream] Room IDs: ${roomIds.join(", ")}`);
 
-    const fiber = yield* Effect.scoped(
-      Effect.gen(function* () {
-        const eventStream = yield* bus.subscribeToRooms(roomIds);
-        return yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
-          sendMessage(ws, {
+    console.log(`[startEventStream] Subscribing to bus...`);
+
+    // Fork a scoped effect that manages the subscription lifetime
+    const fiber = yield* Effect.gen(function* () {
+      const eventStream = yield* bus.subscribeToRooms(roomIds);
+      console.log(`[startEventStream] Got event stream from bus`);
+
+      console.log(`[startEventStream] Starting stream consumer...`);
+      yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
+        Effect.gen(function* () {
+          console.log(
+            `[startEventStream] Sending event to client: ${event.type}`,
+          );
+          yield* sendMessage(ws, {
             type: "event",
             event,
-          }),
-        );
-      }),
-    ).pipe(Effect.fork);
+          });
+          console.log(`[startEventStream] Event sent to client: ${event.type}`);
+        }),
+      );
+    }).pipe(
+      Effect.scoped, // Manage the subscription scope
+      Effect.fork,
+    );
+
+    console.log(`[startEventStream] Fiber created, updating state...`);
 
     yield* Ref.update(state, (s) => ({
       ...s,
       streamFiber: fiber,
     }));
 
-    yield* Console.log(`Event stream started for rooms: ${roomIds.join(", ")}`);
+    console.log(
+      `[startEventStream] Event stream started for rooms: ${roomIds.join(", ")}`,
+    );
   });
 
 const stopEventStream = (state: Ref.Ref<ConnectionState>) =>
   Effect.gen(function* () {
+    console.log(`[stopEventStream] Called`);
     const currentState = yield* Ref.get(state);
 
     const fiber = currentState.streamFiber;
     if (fiber) {
+      console.log(`[stopEventStream] Interrupting existing fiber...`);
       yield* Fiber.interrupt(fiber);
       yield* Ref.update(state, (s) => ({
         ...s,
         streamFiber: null,
       }));
-      yield* Console.log("Event stream stopped");
+      console.log(`[stopEventStream] Event stream stopped`);
+    } else {
+      console.log(`[stopEventStream] No existing fiber to stop`);
     }
   });
 
@@ -160,14 +188,20 @@ const handleSubscribe = (
   roomId: string,
 ) =>
   Effect.gen(function* () {
+    console.log(`[handleSubscribe] Called for room: ${roomId}`);
     const currentState = yield* Ref.get(state);
+    console.log(
+      `[handleSubscribe] Current state - authenticated: ${currentState.authenticated}, userId: ${currentState.userId}`,
+    );
 
     if (!currentState.authenticated || !currentState.userId) {
+      console.log(`[handleSubscribe] Not authenticated, sending error`);
       yield* sendError(ws, "NOT_AUTHENTICATED", "Please authenticate first");
       return;
     }
 
     const roomService = yield* RoomService;
+    console.log(`[handleSubscribe] Checking room membership...`);
 
     const isMember = yield* roomService
       .isMember(roomId, currentState.userId)
@@ -185,6 +219,7 @@ const handleSubscribe = (
       );
 
     if (!isMember) {
+      console.log(`[handleSubscribe] Not a room member, sending error`);
       yield* sendError(
         ws,
         "NOT_ROOM_MEMBER",
@@ -193,13 +228,18 @@ const handleSubscribe = (
       return;
     }
 
+    console.log(
+      `[handleSubscribe] User is member, stopping existing stream...`,
+    );
     yield* stopEventStream(state);
 
+    console.log(`[handleSubscribe] Adding room to subscribed rooms...`);
     yield* Ref.update(state, (s) => ({
       ...s,
       subscribedRooms: new Set([...s.subscribedRooms, roomId]),
     }));
 
+    console.log(`[handleSubscribe] Starting event stream...`);
     yield* startEventStream(ws, state);
 
     yield* sendMessage(ws, {
@@ -207,7 +247,7 @@ const handleSubscribe = (
       roomId,
     });
 
-    yield* Console.log(`Subscribed to room: ${roomId}`);
+    console.log(`[handleSubscribe] Successfully subscribed to room: ${roomId}`);
   });
 
 const handleUnsubscribe = (

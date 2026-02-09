@@ -47,7 +47,7 @@ export class WebSocketClient {
     null;
   private eventHub: PubSub.PubSub<RoomEvent>;
   private messageQueue: Queue.Queue<WSClientMessage>;
-  private statusHub: PubSub.PubSub<ConnectionStatus>;
+  private statusQueue: Queue.Queue<ConnectionStatus>;
   private currentStatus: ConnectionStatus = "disconnected";
   private pingInterval: NodeJS.Timeout | null = null;
 
@@ -55,9 +55,9 @@ export class WebSocketClient {
     // Initialize Hubs and Queues in constructor so they are always available
     this.eventHub = Effect.runSync(PubSub.unbounded<RoomEvent>());
     this.messageQueue = Effect.runSync(Queue.unbounded<WSClientMessage>());
-    this.statusHub = Effect.runSync(PubSub.unbounded<ConnectionStatus>());
+    this.statusQueue = Effect.runSync(Queue.unbounded<ConnectionStatus>());
     // Publish initial status
-    Effect.runSync(PubSub.publish(this.statusHub, "disconnected"));
+    Effect.runSync(Queue.offer(this.statusQueue, "disconnected"));
   }
 
   connect(): Effect.Effect<void, WebSocketError, never> {
@@ -87,12 +87,18 @@ export class WebSocketClient {
 
   disconnect(): Effect.Effect<void, never, never> {
     return Effect.gen(this, function* () {
+      console.log("[WebSocketClient.disconnect] Starting disconnect...");
+
       if (this.connectionFiber) {
+        console.log(
+          "[WebSocketClient.disconnect] Interrupting connection fiber",
+        );
         yield* Fiber.interrupt(this.connectionFiber);
         this.connectionFiber = null;
       }
 
       if (this.state?.ws) {
+        console.log("[WebSocketClient.disconnect] Closing WebSocket");
         this.state.ws.close();
         this.state = null;
       }
@@ -103,6 +109,12 @@ export class WebSocketClient {
       }
 
       yield* this.setStatus("disconnected");
+
+      // Reset the singleton so a new connection can be made
+      console.log("[WebSocketClient.disconnect] Resetting singleton");
+      wsClient = null;
+
+      console.log("[WebSocketClient.disconnect] Disconnect complete");
     });
   }
 
@@ -150,15 +162,12 @@ export class WebSocketClient {
   }
 
   getStatusStream(): Stream.Stream<ConnectionStatus, never, never> {
-    // Start with current status, then continue with updates from PubSub
     console.log(
-      `[WebSocketClient.getStatusStream] Creating stream with current status: ${this.currentStatus}`,
+      `[WebSocketClient.getStatusStream] Creating stream, current status: ${this.currentStatus}`,
     );
-    const stream = Stream.concat(
-      Stream.succeed(this.currentStatus),
-      Stream.fromPubSub(this.statusHub),
-    );
-    return stream;
+    // Just return the Queue stream - let the consumer read current status separately
+    // This avoids issues with React StrictMode double-rendering
+    return Stream.fromQueue(this.statusQueue, { shutdown: false });
   }
 
   getStatus(): ConnectionStatus {
@@ -178,8 +187,11 @@ export class WebSocketClient {
         this.state.status = status;
       }
       this.currentStatus = status;
-      yield* PubSub.publish(this.statusHub, status);
-      console.log(`[WebSocketClient.setStatus] Status set to: ${status}`);
+      console.log(`[WebSocketClient.setStatus] Offering to queue: ${status}`);
+      const offerResult = yield* Queue.offer(this.statusQueue, status);
+      console.log(
+        `[WebSocketClient.setStatus] Queue offer result: ${offerResult}, status set to: ${status}`,
+      );
     });
   }
 
