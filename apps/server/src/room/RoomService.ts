@@ -26,6 +26,11 @@ export interface RoomService {
     type: "channel" | "dm",
     created_by: string,
     description?: string,
+    targetUserId?: string,
+  ) => Effect.Effect<Room, RoomServiceError>;
+  findOrCreateDM: (
+    userId1: string,
+    userId2: string,
   ) => Effect.Effect<Room, RoomServiceError>;
   findById: (id: string) => Effect.Effect<Room, RoomServiceError>;
   listByUser: (
@@ -80,6 +85,7 @@ export const RoomServiceLive = Layer.effect(
         type: "channel" | "dm",
         created_by: string,
         description?: string,
+        targetUserId?: string,
       ) =>
         Effect.gen(function* () {
           const input = yield* decodeRoomCreate({
@@ -97,27 +103,115 @@ export const RoomServiceLive = Layer.effect(
             ),
           );
 
-          const result = yield* sqlSafe(
-            db`WITH new_room AS (
-            INSERT INTO rooms (name, type, created_by, description) 
+          // First, create the room
+          const roomResult = yield* sqlSafe(
+            db`INSERT INTO rooms (name, type, created_by, description)
             VALUES (${input.name},${input.type}, ${input.created_by}, ${input.description ?? null})
-            RETURNING id, name, type, description, created_by, created_at, updated_at),
-
-            new_member AS (
-            INSERT INTO room_members (room_id, user_id, role)
-            SELECT id, ${input.created_by}, 'owner'
-            FROM new_room
-            RETURNING room_id)
-
-            SELECT * FROM new_room`,
+            RETURNING id, name, type, description, created_by, created_at, updated_at`,
           );
 
-          const room = yield* toRoom(result[0]);
+          const room = yield* toRoom(roomResult[0]);
 
+          // Add creator as member
+          yield* sqlSafe(
+            db`INSERT INTO room_members (room_id, user_id, role)
+            VALUES (${room.id}, ${input.created_by}, 'owner')
+            ON CONFLICT (room_id, user_id) DO NOTHING`,
+          );
+
+          // Publish room.created event
           yield* bus.publish({
             type: "room.created",
             room: room,
             timestamp: new Date(),
+          });
+
+          // For DM rooms, also add target user as member and publish member_added event
+          if (type === "dm" && targetUserId) {
+            yield* sqlSafe(
+              db`INSERT INTO room_members (room_id, user_id, role)
+              VALUES (${room.id}, ${targetUserId}, 'member')
+              ON CONFLICT (room_id, user_id) DO NOTHING`,
+            );
+
+            // Get target user's username for the event
+            const targetUser = yield* sqlSafe(
+              db`SELECT username FROM users WHERE id = ${targetUserId} LIMIT 1`,
+            );
+
+            yield* bus.publish({
+              type: "room.member_added",
+              roomId: room.id,
+              userId: targetUserId as string,
+              username: targetUser[0]?.username as string ?? "Unknown",
+              role: "member",
+              timestamp: new Date(),
+              addedBy: input.created_by as string,
+            });
+          }
+
+          return room;
+        }),
+
+      findOrCreateDM: (userId1: string, userId2: string) =>
+        Effect.gen(function* () {
+          // Find existing DM room where both users are members
+          const existingRooms = yield* sqlSafe(
+            db`SELECT r.id, r.name, r.type, r.description, r.created_by, r.created_at, r.updated_at
+            FROM rooms r
+            INNER JOIN room_members rm1 ON r.id = rm1.room_id AND rm1.user_id = ${userId1}
+            INNER JOIN room_members rm2 ON r.id = rm2.room_id AND rm2.user_id = ${userId2}
+            WHERE r.type = 'dm'
+            LIMIT 1`,
+          );
+
+          // If room exists, return it
+          if (existingRooms.length > 0) {
+            return yield* toRoom(existingRooms[0]);
+          }
+
+          // Otherwise, create a new DM room
+          const roomResult = yield* sqlSafe(
+            db`INSERT INTO rooms (name, type, created_by, description)
+            VALUES (${'DM between users'}, 'dm', ${userId1}, NULL)
+            RETURNING id, name, type, description, created_by, created_at, updated_at`,
+          );
+
+          const room = yield* toRoom(roomResult[0]);
+
+          // Add both users as members
+          yield* sqlSafe(
+            db`INSERT INTO room_members (room_id, user_id, role)
+            VALUES (${room.id}, ${userId1}, 'owner')
+            ON CONFLICT (room_id, user_id) DO NOTHING`,
+          );
+
+          yield* sqlSafe(
+            db`INSERT INTO room_members (room_id, user_id, role)
+            VALUES (${room.id}, ${userId2}, 'member')
+            ON CONFLICT (room_id, user_id) DO NOTHING`,
+          );
+
+          // Publish room.created event
+          yield* bus.publish({
+            type: "room.created",
+            room: room,
+            timestamp: new Date(),
+          });
+
+          // Publish room.member_added event for the target user
+          const targetUser = yield* sqlSafe(
+            db`SELECT username FROM users WHERE id = ${userId2} LIMIT 1`,
+          );
+
+          yield* bus.publish({
+            type: "room.member_added",
+            roomId: room.id,
+            userId: userId2 as string,
+            username: targetUser[0]?.username as string ?? "Unknown",
+            role: "member",
+            timestamp: new Date(),
+            addedBy: userId1 as string,
           });
 
           return room;
