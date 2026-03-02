@@ -76,8 +76,6 @@ export const MessageServiceLive = Layer.effect(
             VALUES (${input.room_id}, ${userId}, ${input.content})
             RETURNING id, room_id, user_id, content, created_at, updated_at`);
 
-          yield* Console.log(row);
-
           return yield* toMessage(row[0]);
         }),
       listByRoom: (

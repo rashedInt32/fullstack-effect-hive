@@ -14,18 +14,27 @@ import { RealTimeBus } from "./RealtimeBus";
 interface ConnectionState {
   userId: string | null;
   username: string | null;
+  userEmail: string | null;
   authenticated: boolean;
   subscribedRooms: Set<string>;
-  streamFiber: Fiber.Fiber<void, never> | null;
+  streamFiber: Fiber.RuntimeFiber<void, never> | null;
 }
 
 const createInitialState = (): ConnectionState => ({
   userId: null,
   username: null,
+  userEmail: null,
   authenticated: false,
   subscribedRooms: new Set(),
   streamFiber: null,
 });
+
+type ServerEnv =
+  | JwtService
+  | UserService
+  | RoomService
+  | MessageService
+  | RealTimeBus;
 
 const sendMessage = (
   ws: WebSocket,
@@ -58,19 +67,12 @@ const handleAuthentication = (
   token: string,
 ) =>
   Effect.gen(function* () {
-    yield* Console.log(
-      `[handleAuthentication] Starting auth with token: ${token.substring(0, 20)}...`,
-    );
     const jwtService = yield* JwtService;
     const userService = yield* UserService;
 
     const payload = yield* jwtService.verify(token).pipe(
       Effect.catchAll((error) =>
         Effect.gen(function* () {
-          yield* Console.error(
-            "[handleAuthentication] Token verification failed:",
-            error,
-          );
           yield* sendError(ws, "AUTH_FAILED", "Invalid token");
           return yield* Effect.fail(error);
         }),
@@ -90,12 +92,9 @@ const handleAuthentication = (
       ...s,
       userId: user.id,
       username: user.username,
+      userEmail: user.email ?? null,
       authenticated: true,
     }));
-
-    yield* Console.log(
-      `[handleAuthentication] Sending authenticated message to client`,
-    );
 
     yield* sendMessage(ws, {
       type: "authenticated",
@@ -108,77 +107,60 @@ const handleAuthentication = (
     );
   });
 
-const startEventStream = (ws: WebSocket, state: Ref.Ref<ConnectionState>) =>
+// startEventStream uses Runtime.runFork to spawn the fiber outside of any
+// scoped Effect. The PubSub subscription lives until the fiber is explicitly
+// interrupted (via stopEventStream), not until the calling Effect completes.
+const startEventStream = (
+  ws: WebSocket,
+  state: Ref.Ref<ConnectionState>,
+  runtime: Runtime.Runtime<ServerEnv>,
+) =>
   Effect.gen(function* () {
-    console.log(`[startEventStream] Called`);
     const bus = yield* RealTimeBus;
     const currentState = yield* Ref.get(state);
 
-    console.log(
-      `[startEventStream] Called with ${currentState.subscribedRooms.size} subscribed rooms`,
-    );
-
     if (currentState.subscribedRooms.size === 0) {
-      console.log(`[startEventStream] No subscribed rooms, skipping`);
       return;
     }
 
     const roomIds = Array.from(currentState.subscribedRooms);
-    console.log(`[startEventStream] Room IDs: ${roomIds.join(", ")}`);
 
-    console.log(`[startEventStream] Subscribing to bus...`);
-
-    // Fork a scoped effect that manages the subscription lifetime
-    const fiber = yield* Effect.gen(function* () {
+    // Build the long-running program that subscribes to the bus and relays
+    // events to the client. Effect.scoped keeps the PubSub subscription alive
+    // for as long as the stream consumer is running. We fork it with
+    // Runtime.runFork so it is NOT tied to the caller's scope.
+    const program = Effect.gen(function* () {
       const eventStream = yield* bus.subscribeToRooms(roomIds);
-      console.log(`[startEventStream] Got event stream from bus`);
 
-      console.log(`[startEventStream] Starting stream consumer...`);
       yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
-        Effect.gen(function* () {
-          console.log(
-            `[startEventStream] Sending event to client: ${event.type}`,
-          );
-          yield* sendMessage(ws, {
-            type: "event",
-            event,
-          });
-          console.log(`[startEventStream] Event sent to client: ${event.type}`);
-        }),
+        sendMessage(ws, { type: "event", event }),
       );
-    }).pipe(
-      Effect.scoped, // Manage the subscription scope
-      Effect.fork,
-    );
+    }).pipe(Effect.scoped);
 
-    console.log(`[startEventStream] Fiber created, updating state...`);
+    // Fork using Runtime.runFork — this spawns a top-level fiber whose scope
+    // is independent of the current Effect, so the PubSub subscription stays
+    // alive until the fiber is interrupted.
+    const fiber = Runtime.runFork(runtime)(program);
 
     yield* Ref.update(state, (s) => ({
       ...s,
       streamFiber: fiber,
     }));
 
-    console.log(
-      `[startEventStream] Event stream started for rooms: ${roomIds.join(", ")}`,
-    );
+    yield* Console.log(`Event stream started for rooms: ${roomIds.join(", ")}`);
   });
 
 const stopEventStream = (state: Ref.Ref<ConnectionState>) =>
   Effect.gen(function* () {
-    console.log(`[stopEventStream] Called`);
     const currentState = yield* Ref.get(state);
 
     const fiber = currentState.streamFiber;
     if (fiber) {
-      console.log(`[stopEventStream] Interrupting existing fiber...`);
       yield* Fiber.interrupt(fiber);
       yield* Ref.update(state, (s) => ({
         ...s,
         streamFiber: null,
       }));
-      console.log(`[stopEventStream] Event stream stopped`);
-    } else {
-      console.log(`[stopEventStream] No existing fiber to stop`);
     }
   });
 
@@ -186,22 +168,17 @@ const handleSubscribe = (
   ws: WebSocket,
   state: Ref.Ref<ConnectionState>,
   roomId: string,
+  runtime: Runtime.Runtime<ServerEnv>,
 ) =>
   Effect.gen(function* () {
-    console.log(`[handleSubscribe] Called for room: ${roomId}`);
     const currentState = yield* Ref.get(state);
-    console.log(
-      `[handleSubscribe] Current state - authenticated: ${currentState.authenticated}, userId: ${currentState.userId}`,
-    );
 
     if (!currentState.authenticated || !currentState.userId) {
-      console.log(`[handleSubscribe] Not authenticated, sending error`);
       yield* sendError(ws, "NOT_AUTHENTICATED", "Please authenticate first");
       return;
     }
 
     const roomService = yield* RoomService;
-    console.log(`[handleSubscribe] Checking room membership...`);
 
     const isMember = yield* roomService
       .isMember(roomId, currentState.userId)
@@ -219,7 +196,6 @@ const handleSubscribe = (
       );
 
     if (!isMember) {
-      console.log(`[handleSubscribe] Not a room member, sending error`);
       yield* sendError(
         ws,
         "NOT_ROOM_MEMBER",
@@ -228,32 +204,26 @@ const handleSubscribe = (
       return;
     }
 
-    console.log(
-      `[handleSubscribe] User is member, stopping existing stream...`,
-    );
     yield* stopEventStream(state);
 
-    console.log(`[handleSubscribe] Adding room to subscribed rooms...`);
     yield* Ref.update(state, (s) => ({
       ...s,
       subscribedRooms: new Set([...s.subscribedRooms, roomId]),
     }));
 
-    console.log(`[handleSubscribe] Starting event stream...`);
-    yield* startEventStream(ws, state);
+    yield* startEventStream(ws, state, runtime);
 
     yield* sendMessage(ws, {
       type: "subscribed",
       roomId,
     });
-
-    console.log(`[handleSubscribe] Successfully subscribed to room: ${roomId}`);
   });
 
 const handleUnsubscribe = (
   ws: WebSocket,
   state: Ref.Ref<ConnectionState>,
   roomId: string,
+  runtime: Runtime.Runtime<ServerEnv>,
 ) =>
   Effect.gen(function* () {
     const currentState = yield* Ref.get(state);
@@ -262,10 +232,8 @@ const handleUnsubscribe = (
       return;
     }
 
-    // stop the running stream before changing subscriptions
     yield* stopEventStream(state);
 
-    // remove the room from subscribedRooms
     yield* Ref.update(state, (s) => {
       const newRooms = new Set(s.subscribedRooms);
       newRooms.delete(roomId);
@@ -275,18 +243,15 @@ const handleUnsubscribe = (
       };
     });
 
-    // read updated state and, if there are still rooms, restart the stream
     const updatedState = yield* Ref.get(state);
     if (updatedState.subscribedRooms.size > 0) {
-      yield* startEventStream(ws, state);
+      yield* startEventStream(ws, state, runtime);
     }
 
     yield* sendMessage(ws, {
       type: "unsubscribed",
       roomId,
     });
-
-    yield* Console.log(`Unsubscribed from room: ${roomId}`);
   });
 
 const handleMessageSend = (
@@ -296,46 +261,21 @@ const handleMessageSend = (
   content: string,
 ) =>
   Effect.gen(function* () {
-    yield* Console.log(
-      `[handleMessageSend] START - roomId: ${roomId}, content: "${content}"`,
-    );
-
     const currentState = yield* Ref.get(state);
-    yield* Console.log(`[handleMessageSend] Current state:`, {
-      userId: currentState.userId,
-      username: currentState.username,
-      authenticated: currentState.authenticated,
-    });
 
     if (!currentState.authenticated || !currentState.userId) {
-      yield* Console.error("[handleMessageSend] User not authenticated");
       yield* sendError(ws, "NOT_AUTHENTICATED", "Please authenticate first");
       return;
     }
 
-    yield* Console.log("[handleMessageSend] Getting services...");
     const messageService = yield* MessageService;
-    const userService = yield* UserService;
     const bus = yield* RealTimeBus;
-    yield* Console.log("[handleMessageSend] Services obtained");
 
-    yield* Console.log(
-      `[handleMessageSend] Calling messageService.create with userId: ${currentState.userId}, roomId: ${roomId}`,
-    );
-
-    // create the message in DB (or service)
     const message = yield* messageService
       .create(currentState.userId, roomId, content)
       .pipe(
-        Effect.tap(() =>
-          Console.log("[handleMessageSend] messageService.create SUCCESS"),
-        ),
         Effect.catchAll((error) =>
           Effect.gen(function* () {
-            yield* Console.error(
-              "[handleMessageSend] messageService.create FAILED:",
-              error,
-            );
             yield* sendError(
               ws,
               "MESSAGE_SEND_FAILED",
@@ -346,18 +286,15 @@ const handleMessageSend = (
         ),
       );
 
-    yield* Console.log("[handleMessageSend] Message created:", message);
-
-    // publish the new message to RealTimeBus so subscribers get it
-    // (this is the crucial missing line from the original)
-    const user = yield* userService.findById(currentState.userId);
-
+    // Use username and email from the authenticated connection state instead
+    // of making an extra userService.findById() DB query on every message.
     const enrichedMessage = {
       ...message,
-      username: user.username,
-      user_email: user.email ?? null,
+      username: currentState.username!,
+      user_email: currentState.userEmail,
       is_edited: false,
     };
+
     yield* bus
       .publish({
         type: "message.created",
@@ -376,8 +313,6 @@ const handleMessageSend = (
           }),
         ),
       );
-
-    yield* Console.log(`Published message.created event for room ${roomId}`);
   });
 
 const handleTyping = (
@@ -413,6 +348,7 @@ const handleClientMessage = (
   ws: WebSocket,
   state: Ref.Ref<ConnectionState>,
   data: string,
+  runtime: Runtime.Runtime<ServerEnv>,
 ) =>
   Effect.gen(function* () {
     const parsed = yield* Effect.try(() => JSON.parse(data)).pipe(
@@ -441,17 +377,14 @@ const handleClientMessage = (
         break;
 
       case "subscribe":
-        yield* handleSubscribe(ws, state, message.roomId);
+        yield* handleSubscribe(ws, state, message.roomId, runtime);
         break;
 
       case "unsubscribe":
-        yield* handleUnsubscribe(ws, state, message.roomId);
+        yield* handleUnsubscribe(ws, state, message.roomId, runtime);
         break;
 
       case "message.send":
-        yield* Console.log(
-          `[handleClientMessage] Received message.send for room ${message.roomId}`,
-        );
         yield* handleMessageSend(
           ws,
           state,
@@ -460,10 +393,6 @@ const handleClientMessage = (
         ).pipe(
           Effect.catchAll((error) =>
             Effect.gen(function* () {
-              yield* Console.error(
-                "[handleClientMessage] message.send failed:",
-                error,
-              );
               yield* sendError(
                 ws,
                 "MESSAGE_SEND_FAILED",
@@ -490,7 +419,7 @@ const handleClientMessage = (
   }).pipe(
     Effect.catchAll((error) =>
       Effect.gen(function* () {
-        yield* Console.error("[handleClientMessage] Unhandled error:", error);
+        yield* Console.error("Unhandled WebSocket error:", error);
         yield* sendError(
           ws,
           "INTERNAL_ERROR",
@@ -500,19 +429,13 @@ const handleClientMessage = (
     ),
   );
 
-const handleConnection = (
-  ws: WebSocket,
-  runtime: Runtime.Runtime<
-    JwtService | UserService | RoomService | MessageService | RealTimeBus
-  >,
-) =>
+const handleConnection = (ws: WebSocket, runtime: Runtime.Runtime<ServerEnv>) =>
   Effect.gen(function* () {
     const state = yield* Ref.make(createInitialState());
 
     ws.on("message", (data: Buffer) => {
-      console.log("[WebSocketServer] Received message:", data.toString());
-      const program = handleClientMessage(ws, state, data.toString());
-      Effect.runFork(program.pipe(Effect.provide(runtime)));
+      const program = handleClientMessage(ws, state, data.toString(), runtime);
+      Runtime.runFork(runtime)(program);
     });
 
     ws.on("close", (code, reason) => {
@@ -524,12 +447,13 @@ const handleConnection = (
         );
       });
 
-      Effect.runFork(cleanup.pipe(Effect.provide(runtime)));
+      Runtime.runFork(runtime)(cleanup);
     });
 
     ws.on("error", (error) => {
-      const errorHandler = Console.error(`WebSocket error: ${String(error)}`);
-      Effect.runFork(errorHandler.pipe(Effect.provide(runtime)));
+      Runtime.runFork(runtime)(
+        Console.error(`WebSocket error: ${String(error)}`),
+      );
     });
 
     yield* Console.log("New WebSocket connection established");
@@ -537,41 +461,15 @@ const handleConnection = (
 
 export const createWebSocketServer = (
   server: any,
-): Effect.Effect<
-  WSServer,
-  never,
-  JwtService | UserService | RoomService | MessageService | RealTimeBus
-> =>
+): Effect.Effect<WSServer, never, ServerEnv> =>
   Effect.gen(function* () {
-    const runtime = yield* Effect.runtime<
-      JwtService | UserService | RoomService | MessageService | RealTimeBus
-    >();
+    const runtime = yield* Effect.runtime<ServerEnv>();
 
-    const wss = new WSServer({
-      noServer: true,
-      verifyClient: (info: any) => {
-        console.log(
-          "[WebSocketServer] Verifying client connection:",
-          info.origin,
-        );
-        return true;
-      },
-    });
+    const wss = new WSServer({ noServer: true });
 
     wss.on("connection", (ws: WebSocket, req) => {
-      console.log("[WebSocketServer] New connection established");
-      console.log("[WebSocketServer] Connection URL:", req.url);
-      console.log("[WebSocketServer] Headers:", req.headers);
       const program = handleConnection(ws, runtime);
-      Effect.runFork(program.pipe(Effect.provide(runtime)));
-    });
-
-    wss.on("error", (error) => {
-      console.error("[WebSocketServer] Server error:", error);
-    });
-
-    wss.on("headers", (_headers, req) => {
-      console.log("[WebSocketServer] Sending headers for:", req.url);
+      Runtime.runFork(runtime)(program);
     });
 
     yield* Console.log("WebSocket server initialized on path /ws");

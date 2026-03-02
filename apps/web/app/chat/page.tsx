@@ -14,15 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Hash,
-  Send,
-  Menu,
-  Plus,
-  MessageSquare,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { Hash, Send, Menu, Plus } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { authAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
@@ -42,6 +34,7 @@ export default function ChatPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const chatInitializedRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const authState = useAtomValue(authAtom);
@@ -76,20 +69,12 @@ export default function ChatPage() {
   ]);
 
   useEffect(() => {
-    console.log("[ChatPage] useEffect check:", {
-      chatInitialized: chatInitializedRef.current,
-      initialized: authState.initialized,
-      isAuthenticated: authState.isAuthenticated,
-      hasUser: !!authState.user,
-    });
-
     if (
       !chatInitializedRef.current &&
       authState.initialized &&
       authState.isAuthenticated &&
       authState.user
     ) {
-      console.log("[ChatPage] Initializing chat (first time)");
       chatInitializedRef.current = true;
       initializeChat(undefined);
     }
@@ -100,14 +85,17 @@ export default function ChatPage() {
     authState.user,
   ]);
 
-  console.log(chatState);
-
   const activeRoom = chatState.rooms.find(
     (r) => r.id === chatState.activeRoomId,
   );
   const activeMessages = chatState.activeRoomId
     ? chatState.messagesByRoom[chatState.activeRoomId] || []
     : [];
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [activeMessages.length]);
 
   const channels = chatState.rooms.filter((r) => r.type === "channel");
   const directMessages = chatState.rooms.filter((r) => r.type === "dm");
@@ -120,14 +108,6 @@ export default function ChatPage() {
 
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
-
-    console.log(
-      "[handleSendMessage] Sending:",
-      messageInput,
-      "to room:",
-      chatState.activeRoomId,
-    );
-    console.log("[handleSendMessage] WS Status:", chatState.wsStatus);
 
     sendMessage(messageInput);
     setMessageInput("");
@@ -366,6 +346,7 @@ export default function ChatPage() {
               </div>
             ))
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="p-4 border-t border-slate-800">

@@ -27,12 +27,7 @@ export const RealTimeBusLive = Layer.scoped(
   Effect.gen(function* () {
     const pubsub = yield* PubSub.bounded<RoomEvent>(1000);
     return RealTimeBus.of({
-      publish: (event: RoomEvent) => {
-        console.log(
-          `[RealTimeBus] Publishing event: ${event.type} to room ${(event as any).roomId}`,
-        );
-        return PubSub.publish(pubsub, event);
-      },
+      publish: (event: RoomEvent) => PubSub.publish(pubsub, event),
 
       subscribeToRoom: (roomid: string) =>
         Effect.gen(function* () {
@@ -43,36 +38,19 @@ export const RealTimeBusLive = Layer.scoped(
             ),
           );
         }),
+
       subscribeToRooms: (roomIds: string[]) =>
         Effect.gen(function* () {
-          console.log(
-            `[RealTimeBus] Subscribing to rooms: ${roomIds.join(", ")}`,
-          );
           const dequeue = yield* PubSub.subscribe(pubsub);
           const roomSet = new Set(roomIds);
-          console.log(
-            `[RealTimeBus] Subscription created for rooms: ${roomIds.join(", ")}`,
-          );
           return Stream.fromQueue(dequeue).pipe(
-            Stream.filter((event) => {
-              console.log(
-                `[RealTimeBus] Filtering event: ${event.type}, roomId: ${(event as any).roomId}, hasRoomId: ${"roomId" in event}, inSet: ${roomSet.has((event as any).roomId)}`,
-              );
-              const shouldInclude =
-                "roomId" in event && roomSet.has((event as any).roomId);
-              if (shouldInclude) {
-                console.log(
-                  `[RealTimeBus] ✓ Event matches subscribed rooms: ${event.type} for room ${(event as any).roomId}`,
-                );
-              } else {
-                console.log(
-                  `[RealTimeBus] ✗ Event filtered out: ${event.type}`,
-                );
-              }
-              return shouldInclude;
-            }),
+            Stream.filter(
+              (event) =>
+                "roomId" in event && roomSet.has((event as any).roomId),
+            ),
           );
         }),
+
       subscribeToUser: (userId: string) =>
         Effect.gen(function* () {
           const dequeue = yield* PubSub.subscribe(pubsub);

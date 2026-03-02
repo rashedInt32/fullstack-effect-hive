@@ -4,7 +4,7 @@ import { Layer, Console, Effect } from "effect";
 import { createServer } from "node:http";
 import { DbLive } from "./config/Db";
 import { JwtServiceLive } from "./jwt/JwtService";
-import { AppConfig, AppConfigLive } from "./config/Config";
+import { AppConfigLive } from "./config/Config";
 import { AuthServiceLive } from "./auth/AuthService";
 import { RoomServiceLive } from "./room/RoomService";
 import { RootApiLive } from "./api";
@@ -13,13 +13,39 @@ import { MessageServiceLive } from "./message/MessageService";
 import { RealTimeBusLive } from "./realtime/RealtimeBus";
 import { createWebSocketServer } from "./realtime/WebSocketServer";
 
-const wsServer = createServer();
+// Shared infrastructure layers — a single instance of each service is shared
+// across both the HTTP API and the WebSocket handler. This is critical for
+// RealTimeBusLive: both must publish/subscribe on the SAME PubSub so that
+// messages sent via WebSocket (or REST) are visible to all subscribers.
+
+// Base layers (no external requirements)
+const BaseLive = Layer.mergeAll(DbLive, RealTimeBusLive);
+
+// JwtService requires AppConfig
+const JwtLive = JwtServiceLive.pipe(Layer.provide(AppConfigLive));
+
+// Infrastructure: base layers + JWT
+const InfraLive = Layer.mergeAll(BaseLive, JwtLive);
+
+// Application service layers (all depend on Db, RealTimeBus, JwtService)
+const SharedLive = Layer.mergeAll(
+  UserServiceLive,
+  RoomServiceLive,
+  MessageServiceLive,
+  AuthServiceLive,
+).pipe(Layer.provide(InfraLive));
+
+// Merge so that both SharedLive services AND InfraLive services are available
+const AllServicesLive = Layer.provideMerge(SharedLive, InfraLive);
+
+// ---------- WebSocket server on port 3003 ----------
+const wsHttpServer = createServer();
 
 const WebSocketServerLive = Layer.scopedDiscard(
   Effect.gen(function* () {
-    const wss = yield* createWebSocketServer(wsServer);
+    const wss = yield* createWebSocketServer(wsHttpServer);
 
-    wsServer.on("upgrade", (request, socket, head) => {
+    wsHttpServer.on("upgrade", (request, socket, head) => {
       if (request.url === "/ws") {
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit("connection", ws, request);
@@ -29,29 +55,21 @@ const WebSocketServerLive = Layer.scopedDiscard(
       }
     });
 
-    wsServer.listen(3003, () => {
-      console.log("WebSocket server listening on port 3003");
-    });
-
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        wsServer.close();
-        console.log("WebSocket server closed");
+        wss.close();
       }),
     );
 
-    yield* Console.log("WebSocket server configured on port 3003");
-  }),
-).pipe(
-  Layer.provide(UserServiceLive),
-  Layer.provide(RoomServiceLive),
-  Layer.provide(MessageServiceLive),
-  Layer.provide(JwtServiceLive),
-  Layer.provide(RealTimeBusLive),
-  Layer.provide(DbLive),
-  Layer.provide(AppConfigLive),
-);
+    wsHttpServer.listen(3003, () => {
+      // Server started
+    });
 
+    yield* Console.log("WebSocket server listening on port 3003");
+  }),
+).pipe(Layer.provide(AllServicesLive));
+
+// ---------- HTTP API server on port 3002 ----------
 const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
 
 const ServerLive = HttpApiBuilder.serve().pipe(
@@ -64,21 +82,12 @@ const ServerLive = HttpApiBuilder.serve().pipe(
     }),
   ),
   Layer.provide(RootApiLive),
-
-  Layer.provide(UserServiceLive),
-  Layer.provide(RoomServiceLive),
-  Layer.provide(MessageServiceLive),
-  Layer.provide(AuthServiceLive),
-  Layer.provide(JwtServiceLive),
-  Layer.provide(RealTimeBusLive),
-
-  Layer.provide(DbLive),
-  Layer.provide(AppConfigLive),
+  Layer.provide(AllServicesLive),
   Layer.tap(() => Console.log("HTTP API server listening on port 3002")),
-  Layer.provideMerge(WebSocketServerLive),
   Layer.provide(NodeHttpServer.layer(createServer, { port: 3002 })),
 );
 
-const MainLive = ServerLive;
+// ---------- Launch both ----------
+const MainLive = Layer.mergeAll(ServerLive, WebSocketServerLive);
 
 Layer.launch(MainLive).pipe(NodeRuntime.runMain);

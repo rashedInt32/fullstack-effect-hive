@@ -5,6 +5,8 @@ import { apiClient } from "@/lib/api/client";
 import { getWebSocketClient, type ConnectionStatus } from "@/lib/realtime/ws";
 import { authAtom } from "./auth";
 
+let optimisticCounter = 0;
+
 type TypingUser = {
   userId: string;
   username: string;
@@ -41,107 +43,48 @@ export const initializeChatAtom = Atom.writable(
     const auth = ctx.get(authAtom);
 
     if (!auth.isAuthenticated || !auth.user) {
-      console.log("[initializeChatAtom] Not authenticated, skipping");
       return;
     }
 
-    console.log(
-      "[initializeChatAtom] Starting initialization for user:",
-      auth.user.username,
-    );
-
     const wsClient = getWebSocketClient();
 
-    console.log("[initializeChatAtom] About to call wsClient.connect()");
-    console.log("[initializeChatAtom] wsClient instance:", wsClient);
+    // --- 1. Status polling (raw JS timer, always works) ---
+    let lastStatus = wsClient.getStatus();
+    ctx.set(chatAtom, { ...ctx.get(chatAtom), wsStatus: lastStatus });
 
-    // Simplified initialization without complex error handling that causes type issues
-    Effect.runPromise(
-      Effect.gen(function* () {
-        console.log(
-          "[initializeChatAtom] Inside Effect.gen - setup streams...",
-        );
+    const intervalId = setInterval(() => {
+      const status = wsClient.getStatus();
+      if (status !== lastStatus) {
+        lastStatus = status;
+        try {
+          const currentState = ctx.get(chatAtom);
+          ctx.set(chatAtom, { ...currentState, wsStatus: status });
+        } catch {
+          // Registry may be disposed during cleanup
+        }
+      }
+    }, 100);
 
-        // Read current status first (avoids React StrictMode issues with stream creation)
-        const currentStatus = wsClient.getStatus();
-        console.log(`[initializeChatAtom] Current WS status: ${currentStatus}`);
-        ctx.set(chatAtom, {
-          ...ctx.get(chatAtom),
-          wsStatus: currentStatus,
-        });
+    window.addEventListener("beforeunload", () => clearInterval(intervalId));
 
-        // Polling-based status updates (more reliable than streams with React StrictMode)
-        console.log("[initializeChatAtom] Starting status polling...");
-        let lastStatus = currentStatus;
-        const pollStatus = () => {
-          const currentStatus = wsClient.getStatus();
-          if (currentStatus !== lastStatus) {
-            console.log(
-              `[initializeChatAtom] Status changed: ${lastStatus} -> ${currentStatus}`,
-            );
-            try {
-              const currentState = ctx.get(chatAtom);
-              if (currentState.wsStatus !== currentStatus) {
-                ctx.set(chatAtom, {
-                  ...currentState,
-                  wsStatus: currentStatus,
-                });
-                console.log(
-                  "[initializeChatAtom] State updated to:",
-                  currentStatus,
-                );
-              }
-            } catch (e) {
-              console.error("[initializeChatAtom] Error updating state:", e);
-            }
-            lastStatus = currentStatus;
-          }
-        };
+    // --- 2. Event stream (top-level fiber, no parent scope dependency) ---
+    const eventStream = wsClient.getEventStream();
+    Effect.runFork(
+      Stream.runForEach(eventStream, (event) =>
+        Effect.sync(() => {
+          handleRealtimeEvent(ctx, event);
+        }),
+      ).pipe(Effect.catchAll(() => Effect.void)),
+    );
 
-        // Poll every 100ms
-        const intervalId = setInterval(pollStatus, 100);
+    // --- 3. Connect WebSocket (top-level fiber, fire-and-forget) ---
+    Effect.runFork(wsClient.connect().pipe(Effect.catchAll(() => Effect.void)));
 
-        // Cleanup interval when connection closes
-        window.addEventListener("beforeunload", () => {
-          clearInterval(intervalId);
-        });
-
-        // Subscribe to events (use polling for events too since streams are unreliable)
-        console.log(
-          "[initializeChatAtom] Setting up event stream subscription...",
-        );
-        const eventStream = wsClient.getEventStream();
-        const eventFiber = yield* Effect.fork(
-          Stream.runForEach(eventStream, (event) =>
-            Effect.sync(() => {
-              console.log("[initializeChatAtom] Received event:", event);
-              handleRealtimeEvent(ctx, event);
-            }),
-          ).pipe(
-            Effect.catchAll((error) =>
-              Effect.sync(() => {
-                console.error(
-                  "[initializeChatAtom] Event stream error:",
-                  error,
-                );
-              }),
-            ),
-          ),
-        );
-
-        console.log("[initializeChatAtom] Connecting to WebSocket...");
-        yield* wsClient.connect();
-        console.log("[initializeChatAtom] WebSocket connect called");
-      }),
-    ).catch((error) => {
-      console.error("[initializeChatAtom] WebSocket connection failed:", error);
-    });
-
+    // --- 4. Load rooms via HTTP API ---
     Effect.runPromise(
       apiClient.rooms.listByUser(auth.user.id).pipe(
         Effect.tap((rooms) =>
           Effect.sync(() => {
-            console.log("[initializeChatAtom] Loaded rooms:", rooms.length);
             ctx.set(chatAtom, {
               ...ctx.get(chatAtom),
               rooms,
@@ -151,7 +94,6 @@ export const initializeChatAtom = Atom.writable(
         ),
         Effect.catchAll((error) =>
           Effect.sync(() => {
-            console.error("[initializeChatAtom] Failed to load rooms:", error);
             ctx.set(chatAtom, {
               ...ctx.get(chatAtom),
               error:
@@ -235,20 +177,40 @@ export const sendMessageAtom = Atom.writable(
   (get) => get(chatAtom),
   (ctx, content: string) => {
     const state = ctx.get(chatAtom);
+    const auth = ctx.get(authAtom);
 
-    if (!state.activeRoomId) {
-      console.log("[sendMessageAtom] No active room");
+    if (!state.activeRoomId || !auth.user) {
       return;
     }
 
-    console.log("[sendMessageAtom] Sending message:", {
-      roomId: state.activeRoomId,
+    const roomId = state.activeRoomId;
+
+    // Optimistic update: show the message immediately in the UI
+    const optimisticId = `_optimistic:${++optimisticCounter}`;
+    const now = new Date();
+    const optimisticMessage: MessageWithUser = {
+      id: optimisticId,
+      room_id: roomId,
+      user_id: auth.user.id,
       content,
-      wsStatus: state.wsStatus,
+      created_at: now,
+      updated_at: now,
+      username: auth.user.username,
+      user_email: auth.user.email ?? null,
+      is_edited: false,
+    };
+
+    const existingMessages = state.messagesByRoom[roomId] || [];
+    ctx.set(chatAtom, {
+      ...state,
+      messagesByRoom: {
+        ...state.messagesByRoom,
+        [roomId]: [...existingMessages, optimisticMessage],
+      },
     });
 
     const wsClient = getWebSocketClient();
-    Effect.runFork(wsClient.sendChatMessage(state.activeRoomId, content));
+    Effect.runFork(wsClient.sendChatMessage(roomId, content));
   },
 );
 
@@ -387,169 +349,168 @@ export const disconnectWebSocketAtom = Atom.writable(
 function handleRealtimeEvent(
   ctx: Atom.WriteContext<ChatState>,
   event: RoomEvent,
-): Effect.Effect<void, never, never> {
-  return Effect.sync(() => {
-    console.log("[handleRealtimeEvent] Received event:", event);
-    const state = ctx.get(chatAtom);
-    const auth = ctx.get(authAtom);
+): void {
+  const state = ctx.get(chatAtom);
+  const auth = ctx.get(authAtom);
 
-    switch (event.type) {
-      case "message.created": {
-        console.log(
-          "[handleRealtimeEvent] message.created for room:",
-          event.roomId,
-          "message:",
-          event.message,
-        );
-        const roomId = event.roomId;
-        const existingMessages = state.messagesByRoom[roomId] || [];
+  switch (event.type) {
+    case "message.created": {
+      const roomId = event.roomId;
+      const existingMessages = state.messagesByRoom[roomId] || [];
 
-        console.log(
-          "[handleRealtimeEvent] Existing messages count:",
-          existingMessages.length,
-        );
+      // Check if this is a server confirmation of an optimistic message we
+      // already displayed. Match by content + user_id (optimistic IDs start
+      // with "_optimistic:"). Replace the first matching optimistic message
+      // with the real server message so we don't show duplicates.
+      const optimisticIdx = existingMessages.findIndex(
+        (m) =>
+          m.id.startsWith("_optimistic:") &&
+          m.user_id === event.message.user_id &&
+          m.content === event.message.content,
+      );
 
-        const newMessages = [...existingMessages, event.message];
-        console.log(
-          "[handleRealtimeEvent] New messages count:",
-          newMessages.length,
-        );
-
-        ctx.set(chatAtom, {
-          ...state,
-          messagesByRoom: {
-            ...state.messagesByRoom,
-            [roomId]: newMessages,
-          },
-        });
-
-        console.log("[handleRealtimeEvent] State updated with new message");
-        break;
+      let newMessages: MessageWithUser[];
+      if (optimisticIdx !== -1) {
+        // Replace optimistic with real
+        newMessages = [...existingMessages];
+        newMessages[optimisticIdx] = event.message;
+      } else {
+        // No optimistic match — append (message from another user)
+        newMessages = [...existingMessages, event.message];
       }
 
-      case "message.updated": {
-        const roomId = event.roomId;
-        const messages = state.messagesByRoom[roomId] || [];
+      ctx.set(chatAtom, {
+        ...state,
+        messagesByRoom: {
+          ...state.messagesByRoom,
+          [roomId]: newMessages,
+        },
+      });
+      break;
+    }
 
-        ctx.set(chatAtom, {
-          ...state,
-          messagesByRoom: {
-            ...state.messagesByRoom,
-            [roomId]: messages.map((msg) =>
-              msg.id === event.messageId
-                ? {
-                    ...msg,
-                    content: event.content,
-                    updated_at: event.updatedAt,
-                  }
-                : msg,
-            ),
-          },
-        });
-        break;
+    case "message.updated": {
+      const roomId = event.roomId;
+      const messages = state.messagesByRoom[roomId] || [];
+
+      ctx.set(chatAtom, {
+        ...state,
+        messagesByRoom: {
+          ...state.messagesByRoom,
+          [roomId]: messages.map((msg) =>
+            msg.id === event.messageId
+              ? {
+                  ...msg,
+                  content: event.content,
+                  updated_at: event.updatedAt,
+                }
+              : msg,
+          ),
+        },
+      });
+      break;
+    }
+
+    case "message.deleted": {
+      const roomId = event.roomId;
+      const messages = state.messagesByRoom[roomId] || [];
+
+      ctx.set(chatAtom, {
+        ...state,
+        messagesByRoom: {
+          ...state.messagesByRoom,
+          [roomId]: messages.filter((msg) => msg.id !== event.messageId),
+        },
+      });
+      break;
+    }
+
+    case "user.typing": {
+      const roomId = event.roomId;
+
+      if (!auth.user || event.userId === auth.user.id) {
+        return;
       }
 
-      case "message.deleted": {
-        const roomId = event.roomId;
-        const messages = state.messagesByRoom[roomId] || [];
+      const roomTyping = state.typingIndicators[roomId] || {};
 
+      if (event.isTyping) {
         ctx.set(chatAtom, {
           ...state,
-          messagesByRoom: {
-            ...state.messagesByRoom,
-            [roomId]: messages.filter((msg) => msg.id !== event.messageId),
-          },
-        });
-        break;
-      }
-
-      case "user.typing": {
-        const roomId = event.roomId;
-
-        if (!auth.user || event.userId === auth.user.id) {
-          return;
-        }
-
-        const roomTyping = state.typingIndicators[roomId] || {};
-
-        if (event.isTyping) {
-          ctx.set(chatAtom, {
-            ...state,
-            typingIndicators: {
-              ...state.typingIndicators,
-              [roomId]: {
-                ...roomTyping,
-                [event.userId]: {
-                  userId: event.userId,
-                  username: event.username,
-                  expiresAt: Date.now() + 3000,
-                },
+          typingIndicators: {
+            ...state.typingIndicators,
+            [roomId]: {
+              ...roomTyping,
+              [event.userId]: {
+                userId: event.userId,
+                username: event.username,
+                expiresAt: Date.now() + 3000,
               },
             },
-          });
-        } else {
-          const { [event.userId]: _, ...rest } = roomTyping;
-          ctx.set(chatAtom, {
-            ...state,
-            typingIndicators: {
-              ...state.typingIndicators,
-              [roomId]: rest,
-            },
-          });
-        }
-        break;
-      }
-
-      case "room.created": {
-        if (state.rooms.some((r) => r.id === event.room.id)) {
-          return;
-        }
-
+          },
+        });
+      } else {
+        const { [event.userId]: _, ...rest } = roomTyping;
         ctx.set(chatAtom, {
           ...state,
-          rooms: [...state.rooms],
+          typingIndicators: {
+            ...state.typingIndicators,
+            [roomId]: rest,
+          },
         });
-        break;
       }
-
-      case "room.member_added": {
-        const room = state.rooms.find((r) => r.id === event.roomId);
-        if (room) {
-          ctx.set(chatAtom, {
-            ...state,
-            rooms: state.rooms.map((r) =>
-              r.id === event.roomId
-                ? {
-                    ...r,
-                    member_count: (r.member_count ?? 0) + 1,
-                  }
-                : r,
-            ),
-          });
-        }
-        break;
-      }
-
-      case "room.member_removed": {
-        const room = state.rooms.find((r) => r.id === event.roomId);
-        if (room) {
-          ctx.set(chatAtom, {
-            ...state,
-            rooms: state.rooms.map((r) =>
-              r.id === event.roomId
-                ? {
-                    ...r,
-                    member_count: Math.max((r.member_count ?? 1) - 1, 0),
-                  }
-                : r,
-            ),
-          });
-        }
-        break;
-      }
-
-      default:
-        break;
+      break;
     }
-  });
+
+    case "room.created": {
+      if (state.rooms.some((r) => r.id === event.room.id)) {
+        return;
+      }
+
+      ctx.set(chatAtom, {
+        ...state,
+        rooms: [...state.rooms],
+      });
+      break;
+    }
+
+    case "room.member_added": {
+      const room = state.rooms.find((r) => r.id === event.roomId);
+      if (room) {
+        ctx.set(chatAtom, {
+          ...state,
+          rooms: state.rooms.map((r) =>
+            r.id === event.roomId
+              ? {
+                  ...r,
+                  member_count: (r.member_count ?? 0) + 1,
+                }
+              : r,
+          ),
+        });
+      }
+      break;
+    }
+
+    case "room.member_removed": {
+      const room = state.rooms.find((r) => r.id === event.roomId);
+      if (room) {
+        ctx.set(chatAtom, {
+          ...state,
+          rooms: state.rooms.map((r) =>
+            r.id === event.roomId
+              ? {
+                  ...r,
+                  member_count: Math.max((r.member_count ?? 1) - 1, 0),
+                }
+              : r,
+          ),
+        });
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
 }
