@@ -4,6 +4,7 @@ import {
   handleLogin,
   handleProfile,
   handleSignup,
+  handleListAll,
   UserApiGroup,
 } from "./routes/userRoute";
 import { Layer } from "effect";
@@ -11,6 +12,7 @@ import {
   handleAddMember,
   handleCreate as handleRoomCreate,
   handleDelete as handleRoomDelete,
+  handleFindOrCreateDM,
   handleGetById,
   handleGetMemberRole,
   handleIsMember,
@@ -45,7 +47,7 @@ export const AuthApiGroupLive = HttpApiBuilder.group(
 export const UserApiGroupLive = HttpApiBuilder.group(
   RootApi,
   "user",
-  (handlers) => handlers.handle("profile", handleProfile),
+  (handlers) => handlers.handle("profile", handleProfile).handle("listAll", handleListAll),
 );
 
 export const RoomsApiGroupLive = HttpApiBuilder.group(
@@ -54,6 +56,7 @@ export const RoomsApiGroupLive = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("create", handleRoomCreate)
+      .handle("findOrCreateDM", handleFindOrCreateDM)
       .handle("getById", handleGetById)
       .handle("listByUser", handleListByUser)
       .handle("update", handleUpdate)
