@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Hash, Send, Menu, Plus } from "lucide-react";
+import { Hash, Send, Menu, Plus, Search, X, UserPlus } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { authAtom, initializeAuthAtom } from "@/lib/api/atoms/auth";
@@ -25,6 +25,9 @@ import {
   selectRoomAtom,
   sendMessageAtom,
   sendTypingAtom,
+  createDirectMessageAtom,
+  fetchAllUsersAtom,
+  allUsersAtom,
 } from "@/lib/api/atoms/chat";
 import { useRouter } from "next/navigation";
 
@@ -33,6 +36,8 @@ export default function ChatPage() {
   const [newChannelName, setNewChannelName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDmDialogOpen, setIsDmDialogOpen] = useState(false);
   const chatInitializedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -46,6 +51,9 @@ export default function ChatPage() {
   const sendMessage = useAtomSet(sendMessageAtom);
   const sendTyping = useAtomSet(sendTypingAtom);
   const createRoom = useAtomSet(createRoomAtom);
+  const createDirectMessage = useAtomSet(createDirectMessageAtom);
+  const allUsers = useAtomValue(allUsersAtom);
+  const fetchAllUsers = useAtomSet(fetchAllUsersAtom);
 
   useEffect(() => {
     initializeAuth();
@@ -85,6 +93,13 @@ export default function ChatPage() {
     authState.user,
   ]);
 
+  // Fetch all users when DM dialog opens
+  useEffect(() => {
+    if (isDmDialogOpen && allUsers.length === 0) {
+      fetchAllUsers(undefined);
+    }
+  }, [isDmDialogOpen, allUsers.length, fetchAllUsers]);
+
   const activeRoom = chatState.rooms.find(
     (r) => r.id === chatState.activeRoomId,
   );
@@ -97,8 +112,29 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [activeMessages.length]);
 
-  const channels = chatState.rooms.filter((r) => r.type === "channel");
-  const directMessages = chatState.rooms.filter((r) => r.type === "dm");
+  // Filter rooms based on search query
+  const filteredChannels = chatState.rooms
+    .filter((r) => r.type === "channel")
+    .filter((r) =>
+      searchQuery
+        ? r.name.toLowerCase().includes(searchQuery.toLowerCase())
+        : true,
+    );
+
+  const filteredDirectMessages = chatState.rooms
+    .filter((r) => r.type === "dm")
+    .filter((r) =>
+      searchQuery
+        ? r.name.toLowerCase().includes(searchQuery.toLowerCase())
+        : true,
+    );
+
+  // Filter users for DM dialog based on search
+  const filteredUsersForDm = allUsers.filter(
+    (user) =>
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      user.id !== authState.user?.id,
+  );
 
   const activeTypingUsers = chatState.activeRoomId
     ? Object.values(
@@ -177,6 +213,28 @@ export default function ChatPage() {
             <h2 className="font-semibold text-lg">Workspace</h2>
           </div>
 
+          {/* Search Bar */}
+          <div className="p-3 border-b border-slate-800">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search rooms..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 bg-slate-800/50 border-slate-700 text-sm"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto">
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1 mb-1">
@@ -230,7 +288,7 @@ export default function ChatPage() {
                 </Dialog>
               </div>
 
-              {channels.map((channel) => (
+              {filteredChannels.map((channel) => (
                 <button
                   key={channel.id}
                   onClick={() => selectRoom(channel.id)}
@@ -244,18 +302,106 @@ export default function ChatPage() {
                   </div>
                 </button>
               ))}
+
+              {searchQuery && filteredChannels.length === 0 && (
+                <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                  No channels found
+                </div>
+              )}
             </div>
 
             <Separator className="my-2" />
 
             <div className="p-2">
-              <div className="px-2 py-1 mb-1">
+              <div className="flex items-center justify-between px-2 py-1 mb-1">
                 <span className="text-sm font-semibold text-muted-foreground">
                   Direct Messages
                 </span>
+                <Dialog open={isDmDialogOpen} onOpenChange={setIsDmDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>New Direct Message</DialogTitle>
+                      <DialogDescription>
+                        Select a user to start a direct message conversation.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="dm-search">Search Users</Label>
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="dm-search"
+                            placeholder="Search by username..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9"
+                          />
+                          {searchQuery && (
+                            <button
+                              onClick={() => setSearchQuery("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto border rounded-md">
+                        {filteredUsersForDm.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            {allUsers.length === 0
+                              ? "Loading users..."
+                              : "No users found"}
+                          </div>
+                        ) : (
+                          filteredUsersForDm.map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => {
+                                createDirectMessage({
+                                  id: user.id,
+                                  username: user.username,
+                                });
+                                setIsDmDialogOpen(false);
+                                setSearchQuery("");
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-accent/50"
+                            >
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback>
+                                  {getInitials(user.username)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm font-medium">
+                                {user.username}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsDmDialogOpen(false);
+                          setSearchQuery("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
 
-              {directMessages.map((dm) => (
+              {filteredDirectMessages.map((dm) => (
                 <button
                   key={dm.id}
                   onClick={() => selectRoom(dm.id)}
@@ -269,6 +415,12 @@ export default function ChatPage() {
                   <span className="text-sm">{dm.name}</span>
                 </button>
               ))}
+
+              {searchQuery && filteredDirectMessages.length === 0 && (
+                <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                  No direct messages found
+                </div>
+              )}
             </div>
           </div>
 
