@@ -4,6 +4,7 @@ import type { RoomWithMembers, MessageWithUser, RoomEvent } from "@hive/shared";
 import { apiClient } from "@/lib/api/client";
 import { getWebSocketClient, type ConnectionStatus } from "@/lib/realtime/ws";
 import { authAtom } from "./auth";
+import { User } from "@hive/shared";
 
 let optimisticCounter = 0;
 
@@ -230,14 +231,17 @@ export const sendTypingAtom = Atom.writable(
 
 export const createDirectMessageAtom = Atom.writable(
   (get) => get(chatAtom),
-  (ctx, targetUserId: string) => {
+  (ctx, targetUser: { id: string; username: string }) => {
     const auth = ctx.get(authAtom);
     const state = ctx.get(chatAtom);
 
     if (!auth.user) return;
 
+    // Check if DM with this user already exists
     const existingDM = state.rooms.find(
-      (room) => room.type === "dm" && room.member_count === 2,
+      (room) =>
+        room.type === "dm" &&
+        room.name.includes(targetUser.username),
     );
 
     if (existingDM) {
@@ -248,20 +252,24 @@ export const createDirectMessageAtom = Atom.writable(
       return;
     }
 
+    // Use findOrCreateDM endpoint which handles both cases
     Effect.runPromise(
       apiClient.rooms
-        .create({
-          name: `DM`,
-          type: "dm",
-          created_by: auth.user.id,
-        })
+        .findOrCreateDM(targetUser.id)
         .pipe(
           Effect.tap((room) =>
             Effect.sync(() => {
               const currentState = ctx.get(chatAtom);
               ctx.set(chatAtom, {
                 ...currentState,
-                rooms: [...currentState.rooms],
+                rooms: [
+                  ...currentState.rooms,
+                  {
+                    ...room,
+                    member_count: 2,
+                    user_role: "owner" as const,
+                  },
+                ],
                 activeRoomId: room.id,
               });
             }),
@@ -357,6 +365,16 @@ function handleRealtimeEvent(
     case "message.created": {
       const roomId = event.roomId;
       const existingMessages = state.messagesByRoom[roomId] || [];
+
+      // First, check if this message already exists by ID (prevent duplicates)
+      const existingMsgIdx = existingMessages.findIndex(
+        (m) => m.id === event.message.id,
+      );
+
+      if (existingMsgIdx !== -1) {
+        // Message already exists, don't add duplicate
+        return;
+      }
 
       // Check if this is a server confirmation of an optimistic message we
       // already displayed. Match by content + user_id (optimistic IDs start
@@ -467,16 +485,26 @@ function handleRealtimeEvent(
         return;
       }
 
+      // Add the new room to the state
       ctx.set(chatAtom, {
         ...state,
-        rooms: [...state.rooms],
+        rooms: [
+          ...state.rooms,
+          {
+            ...event.room,
+            member_count: 2,
+            user_role: "member" as const,
+          },
+        ],
       });
       break;
     }
 
     case "room.member_added": {
-      const room = state.rooms.find((r) => r.id === event.roomId);
-      if (room) {
+      const existingRoom = state.rooms.find((r) => r.id === event.roomId);
+      
+      if (existingRoom) {
+        // Room exists, just update member count
         ctx.set(chatAtom, {
           ...state,
           rooms: state.rooms.map((r) =>
@@ -488,6 +516,33 @@ function handleRealtimeEvent(
               : r,
           ),
         });
+      } else {
+        // Room doesn't exist in state - this means we were added to a room
+        // we didn't know about. Refresh the room list.
+        ctx.set(chatAtom, {
+          ...state,
+          loading: true,
+        });
+        
+        // Trigger room list refresh by calling the API directly
+        const currentAuth = ctx.get(authAtom);
+        if (currentAuth.user) {
+          Effect.runPromise(
+            apiClient.rooms.listByUser(currentAuth.user.id).pipe(
+              Effect.tap((rooms) =>
+                Effect.sync(() => {
+                  const currentState = ctx.get(chatAtom);
+                  ctx.set(chatAtom, {
+                    ...currentState,
+                    rooms,
+                    loading: false,
+                  });
+                }),
+              ),
+              Effect.catchAll(() => Effect.void),
+            ),
+          );
+        }
       }
       break;
     }
@@ -514,3 +569,59 @@ function handleRealtimeEvent(
       break;
   }
 }
+
+export const allUsersAtom = Atom.make<User[]>([]);
+
+export const fetchAllUsersAtom = Atom.writable(
+  (get) => get(allUsersAtom),
+  (ctx) => {
+    Effect.runPromise(
+      apiClient.user.listAll().pipe(
+        Effect.tap((users) =>
+          Effect.sync(() => {
+            ctx.set(allUsersAtom, users);
+          }),
+        ),
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            console.error("Failed to fetch users:", error);
+          }),
+        ),
+      ),
+    );
+  },
+);
+
+export const refreshRoomsAtom = Atom.writable(
+  (get) => get(chatAtom),
+  (ctx) => {
+    const auth = ctx.get(authAtom);
+    const state = ctx.get(chatAtom);
+
+    if (!auth.user) return;
+
+    Effect.runPromise(
+      apiClient.rooms.listByUser(auth.user.id).pipe(
+        Effect.tap((rooms) =>
+          Effect.sync(() => {
+            ctx.set(chatAtom, {
+              ...state,
+              rooms,
+              loading: false,
+            });
+          }),
+        ),
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            ctx.set(chatAtom, {
+              ...state,
+              error:
+                error instanceof Error ? error.message : "Failed to refresh rooms",
+              loading: false,
+            });
+          }),
+        ),
+      ),
+    );
+  },
+);
