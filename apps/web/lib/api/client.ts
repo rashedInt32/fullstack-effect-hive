@@ -53,6 +53,7 @@ export const apiClient = {
   },
   user: {
     profile: () => apiFetchWithAuth<User>("/user/profile", { method: "GET" }),
+    listAll: () => apiFetchWithAuth<User[]>("/user/list", { method: "GET" }),
   },
 
   rooms: {
@@ -60,6 +61,12 @@ export const apiClient = {
       apiFetchWithAuth<Room>("/rooms/create", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+
+    findOrCreateDM: (targetUserId: string) =>
+      apiFetchWithAuth<Room>("/rooms/dm/find-or-create", {
+        method: "POST",
+        body: JSON.stringify({ targetUserId }),
       }),
 
     getById: (id: string) =>
