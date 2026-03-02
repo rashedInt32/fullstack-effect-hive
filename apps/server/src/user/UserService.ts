@@ -16,6 +16,7 @@ export interface UserService {
   ) => Effect.Effect<User, UserServiceError | JwtError>;
   findByName: (username: string) => Effect.Effect<User, UserServiceError>;
   findById: (id: string) => Effect.Effect<User, UserServiceError>;
+  listAll: () => Effect.Effect<User[], UserServiceError>;
 }
 
 export const UserService = Context.GenericTag<UserService>("UserService");
@@ -75,6 +76,20 @@ export const UserServiceLive = Layer.effect(
           );
 
           return yield* toUser(res[0]);
+        }),
+
+      listAll: () =>
+        Effect.gen(function* () {
+          const res = yield* sqlSafe(
+            db`SELECT id, username, email FROM users ORDER BY username ASC`,
+          );
+
+          const users: User[] = [];
+          for (const row of res) {
+            const user = yield* toUser(row);
+            users.push(user);
+          }
+          return users;
         }),
     });
   }),
