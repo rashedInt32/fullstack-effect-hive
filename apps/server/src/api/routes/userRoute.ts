@@ -38,6 +38,11 @@ export const UserApiGroup = HttpApiGroup.make("user")
       .addSuccess(UserSchema)
       .addError(UserServiceErrorSchema),
   )
+  .add(
+    HttpApiEndpoint.get("listAll", "/list")
+      .addSuccess(Schema.Array(UserSchema))
+      .addError(UserServiceErrorSchema),
+  )
   .prefix("/user");
 
 export const handleLogin = ({ payload }: { payload: UserLogin }) =>
@@ -77,6 +82,19 @@ export const handleProfile = () =>
     const userService = yield* UserService;
     const user = yield* requireAuth;
     const result = yield* userService.findById(user.id as string);
+
+    return result;
+  }).pipe(
+    Effect.mapError((err) => ({
+      code: err.code,
+      message: err.message,
+    })),
+  );
+
+export const handleListAll = () =>
+  Effect.gen(function* () {
+    const userService = yield* UserService;
+    const result = yield* userService.listAll();
 
     return result;
   }).pipe(

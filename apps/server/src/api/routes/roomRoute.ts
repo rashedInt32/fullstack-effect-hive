@@ -30,6 +30,16 @@ export const RoomApiGroup = HttpApiGroup.make("rooms")
       .addError(RoomApiErrorSchema),
   )
   .add(
+    HttpApiEndpoint.post("findOrCreateDM", "/dm/find-or-create")
+      .setPayload(
+        Schema.Struct({
+          targetUserId: Schema.String,
+        }),
+      )
+      .addSuccess(RoomSchema)
+      .addError(RoomApiErrorSchema),
+  )
+  .add(
     HttpApiEndpoint.get("getById", "/:id")
       .setPath(
         Schema.Struct({
@@ -115,7 +125,17 @@ export const handleCreate = ({ payload }: { payload: RoomCreate }) =>
       payload.type,
       user.id,
       payload.description,
+      payload.targetUserId,
     );
+
+    return result;
+  });
+
+export const handleFindOrCreateDM = ({ payload }: { payload: { targetUserId: string } }) =>
+  Effect.gen(function* () {
+    const roomService = yield* RoomService;
+    const user = yield* requireAuth;
+    const result = yield* roomService.findOrCreateDM(user.id as string, payload.targetUserId);
 
     return result;
   });
