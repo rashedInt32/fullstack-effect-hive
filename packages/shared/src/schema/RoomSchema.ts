@@ -32,6 +32,7 @@ export const RoomCreateSchema = Schema.Struct({
   type: Schema.Literal("channel", "dm"),
   created_by: Schema.String,
   description: Schema.optional(Schema.String.pipe(Schema.maxLength(500))),
+  targetUserId: Schema.optional(Schema.String),
 });
 
 export const RoomUpdateSchema = Schema.Struct({
