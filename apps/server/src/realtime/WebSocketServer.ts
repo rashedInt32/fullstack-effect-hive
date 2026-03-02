@@ -18,6 +18,7 @@ interface ConnectionState {
   authenticated: boolean;
   subscribedRooms: Set<string>;
   streamFiber: Fiber.RuntimeFiber<void, never> | null;
+  userEventFiber: Fiber.RuntimeFiber<void, never> | null;
 }
 
 const createInitialState = (): ConnectionState => ({
@@ -27,6 +28,7 @@ const createInitialState = (): ConnectionState => ({
   authenticated: false,
   subscribedRooms: new Set(),
   streamFiber: null,
+  userEventFiber: null,
 });
 
 type ServerEnv =
@@ -65,6 +67,7 @@ const handleAuthentication = (
   ws: WebSocket,
   state: Ref.Ref<ConnectionState>,
   token: string,
+  runtime: Runtime.Runtime<ServerEnv>,
 ) =>
   Effect.gen(function* () {
     const jwtService = yield* JwtService;
@@ -102,9 +105,61 @@ const handleAuthentication = (
       username: user.username,
     });
 
+    // Start user event stream to receive user-level events (room.member_added, etc.)
+    yield* startUserEventStream(ws, state, runtime);
+
     yield* Console.log(
       `WebSocket authenticated: ${user.username} (${user.id})`,
     );
+  });
+
+// startUserEventStream subscribes to user-level events (like room.member_added)
+// This runs independently of room subscriptions
+const startUserEventStream = (
+  ws: WebSocket,
+  state: Ref.Ref<ConnectionState>,
+  runtime: Runtime.Runtime<ServerEnv>,
+) =>
+  Effect.gen(function* () {
+    const bus = yield* RealTimeBus;
+    const currentState = yield* Ref.get(state);
+
+    if (!currentState.userId) {
+      return;
+    }
+
+    // Build the long-running program that subscribes to user events
+    const program = Effect.gen(function* () {
+      const eventStream = yield* bus.subscribeToUser(currentState.userId!);
+
+      yield* Stream.runForEach(eventStream, (event: RoomEvent) =>
+        sendMessage(ws, { type: "event", event }),
+      );
+    }).pipe(Effect.scoped);
+
+    // Fork using Runtime.runFork
+    const fiber = Runtime.runFork(runtime)(program);
+
+    yield* Ref.update(state, (s) => ({
+      ...s,
+      userEventFiber: fiber,
+    }));
+
+    yield* Console.log(`User event stream started for user: ${currentState.userId}`);
+  });
+
+const stopUserEventStream = (state: Ref.Ref<ConnectionState>) =>
+  Effect.gen(function* () {
+    const currentState = yield* Ref.get(state);
+
+    const fiber = currentState.userEventFiber;
+    if (fiber) {
+      yield* Fiber.interrupt(fiber);
+      yield* Ref.update(state, (s) => ({
+        ...s,
+        userEventFiber: null,
+      }));
+    }
   });
 
 // startEventStream uses Runtime.runFork to spawn the fiber outside of any
@@ -373,7 +428,7 @@ const handleClientMessage = (
 
     switch (message.type) {
       case "auth":
-        yield* handleAuthentication(ws, state, message.token);
+        yield* handleAuthentication(ws, state, message.token, runtime);
         break;
 
       case "subscribe":
@@ -441,6 +496,7 @@ const handleConnection = (ws: WebSocket, runtime: Runtime.Runtime<ServerEnv>) =>
     ws.on("close", (code, reason) => {
       const cleanup = Effect.gen(function* () {
         yield* stopEventStream(state);
+        yield* stopUserEventStream(state);
         const finalState = yield* Ref.get(state);
         yield* Console.log(
           `WebSocket closed: ${finalState.username || "unauthenticated"} (code: ${code}, reason: ${reason.toString()})`,
