@@ -57,6 +57,7 @@ export const RealTimeBusLive = Layer.scoped(
           return Stream.fromQueue(dequeue).pipe(
             Stream.filter((event) => {
               switch (event.type) {
+                // Room-level events that affect the user
                 case "room.created":
                   return event.room.created_by === userId;
                 case "room.updated":
@@ -67,12 +68,11 @@ export const RealTimeBusLive = Layer.scoped(
                 case "room.member_removed":
                 case "room.member_role_changed":
                   return event.userId === userId;
-                case "message.created":
-                  return event.message.user_id === userId;
-                case "message.updated":
-                case "message.deleted":
-                  return event.userId === userId;
 
+                // Message events are delivered via room subscriptions, not user stream
+                // to avoid duplicates when user is subscribed to the room
+
+                // User presence events
                 case "user.typing":
                 case "user.online":
                 case "user.offline":
