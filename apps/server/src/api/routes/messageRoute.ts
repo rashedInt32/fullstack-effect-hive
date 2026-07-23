@@ -1,9 +1,4 @@
-import {
-  HttpApi,
-  HttpApiBuilder,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
 import {
   MessageCreate,
   MessageCreateSchema,
@@ -58,7 +53,6 @@ export const MessageApiGroup = HttpApiGroup.make("messages")
 
 export const handleMessageCreate = ({ payload }: { payload: MessageCreate }) =>
   Effect.gen(function* () {
-    yield* Console.log("Check");
     const messageService = yield* MessageService;
     const user = yield* requireAuth;
     const result = yield* messageService.create(

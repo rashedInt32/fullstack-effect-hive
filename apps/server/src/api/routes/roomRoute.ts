@@ -131,11 +131,18 @@ export const handleCreate = ({ payload }: { payload: RoomCreate }) =>
     return result;
   });
 
-export const handleFindOrCreateDM = ({ payload }: { payload: { targetUserId: string } }) =>
+export const handleFindOrCreateDM = ({
+  payload,
+}: {
+  payload: { targetUserId: string };
+}) =>
   Effect.gen(function* () {
     const roomService = yield* RoomService;
     const user = yield* requireAuth;
-    const result = yield* roomService.findOrCreateDM(user.id as string, payload.targetUserId);
+    const result = yield* roomService.findOrCreateDM(
+      user.id as string,
+      payload.targetUserId,
+    );
 
     return result;
   });
